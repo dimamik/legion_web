@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+@source "../../lib/**/*.{ex,heex}";
+
+@theme {
+  --color-sol-base03: #002b36;
+  --color-sol-base02: #073642;
+  --color-sol-base01: #586e75;
+  --color-sol-base00: #657b83;
+  --color-sol-base0: #839496;
+  --color-sol-base1: #93a1a1;
+  --color-sol-base2: #eee8d5;
+  --color-sol-base3: #fdf6e3;
+  --color-sol-yellow: #b58900;
+  --color-sol-orange: #cb4b16;
+  --color-sol-red: #dc322f;
+  --color-sol-magenta: #d33682;
+  --color-sol-violet: #6c71c4;
+  --color-sol-blue: #268bd2;
+  --color-sol-cyan: #2aa198;
+  --color-sol-green: #859900;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+/* Smooth transitions for interactive elements */
+a, button, input, details summary {
+  transition: all 0.15s ease;
+}
+
+/* Code blocks */
+pre {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', ui-monospace, monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+/* Breathing glow for waiting state */
+@keyframes waiting-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(181, 137, 0, 0), inset 0 0 0 0 rgba(181, 137, 0, 0); }
+  50% { box-shadow: 0 0 12px -2px rgba(181, 137, 0, 0.2), inset 0 0 8px -4px rgba(181, 137, 0, 0.1); }
+}
+
+.waiting-glow {
+  animation: waiting-glow 2.5s ease-in-out infinite;
+}
+
+/* Subtle pulse for active indicators */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.soft-pulse {
+  animation: soft-pulse 2s ease-in-out infinite;
+}
+
+/* Details/summary arrow override */
+details summary::-webkit-details-marker,
+details summary::marker {
+  display: none;
+  content: "";
+}
+
+/* Fade-in for new events */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in-up 0.2s ease-out;
+}
+
+/* Makeup syntax highlighting — solarized light palette */
+.highlight .c, .highlight .c1, .highlight .ch, .highlight .cm,
+.highlight .cp, .highlight .cpf, .highlight .cs, .highlight .sd { color: #93a1a1; font-style: italic; }
+.highlight .k, .highlight .kc, .highlight .kd, .highlight .kn,
+.highlight .kp, .highlight .kr, .highlight .kt, .highlight .ow { color: #859900; font-weight: bold; }
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sa,
+.highlight .sb, .highlight .sc, .highlight .se, .highlight .sh,
+.highlight .si, .highlight .sr, .highlight .ss, .highlight .sx,
+.highlight .dl { color: #2aa198; }
+.highlight .m, .highlight .mb, .highlight .mf, .highlight .mh,
+.highlight .mi, .highlight .mo, .highlight .il { color: #d33682; }
+.highlight .na { color: #268bd2; }
+.highlight .nb, .highlight .bp { color: #268bd2; }
+.highlight .nc { color: #cb4b16; }
+.highlight .nd { color: #6c71c4; font-weight: bold; }
+.highlight .ne { color: #cb4b16; }
+.highlight .nf, .highlight .fm { color: #268bd2; }
+.highlight .n, .highlight .nn, .highlight .no, .highlight .nv,
+.highlight .nx, .highlight .vc, .highlight .vg, .highlight .vi,
+.highlight .vm, .highlight .py { color: #586e75; }
+.highlight .ni { color: #cb4b16; }
+.highlight .nl { color: #b58900; }
+.highlight .nt { color: #268bd2; font-weight: bold; }
+.highlight .o { color: #859900; }
+.highlight .p { color: #586e75; }
+.highlight .err { color: #dc322f; }
+.highlight .gd { color: #dc322f; }
+.highlight .gi { color: #859900; }

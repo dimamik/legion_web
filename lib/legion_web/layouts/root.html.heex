@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+
+    <title>Legion Dashboard</title>
+
+    <link rel="stylesheet" nonce={@csp_nonces.style} href={asset_path(@conn, :css)} />
+
+    <script nonce={@csp_nonces.script} src={asset_path(@conn, :js)} defer>
+    </script>
+  </head>
+
+  <body class="bg-sol-base3 text-sol-base01 min-h-screen antialiased">
+    {@inner_content}
+  </body>
+</html>
