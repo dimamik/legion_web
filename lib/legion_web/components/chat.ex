@@ -1,8 +1,10 @@
 defmodule LegionWeb.Components.Chat do
+  @moduledoc false
+
   use LegionWeb, :html
 
   attr :status, :atom, required: true
-  attr :pending, :boolean, default: false
+  attr :form, :any, required: true
 
   def render(assigns) do
     ~H"""
@@ -34,13 +36,14 @@ defmodule LegionWeb.Components.Chat do
           end
         end)}
       </p>
-      <form phx-submit="send_message" class="flex gap-2.5">
+      <.form for={@form} phx-submit="send_message" id="chat-form" class="flex gap-2.5">
         <input
           type="text"
-          name="text"
+          name={@form[:text].name}
+          value={@form[:text].value}
           autofocus
           autocomplete="off"
-          disabled={@pending || @status == :running}
+          disabled={@status == :running}
           placeholder={
             if @status == :waiting_for_human,
               do: "Type your response\u2026",
@@ -50,12 +53,12 @@ defmodule LegionWeb.Components.Chat do
         />
         <button
           type="submit"
-          disabled={@pending || @status == :running}
+          disabled={@status == :running}
           class="px-5 py-2.5 bg-sol-violet hover:bg-sol-violet/85 disabled:opacity-40 disabled:hover:bg-sol-violet text-white text-sm font-medium rounded-lg transition-all"
         >
-          {if @pending, do: "\u2026", else: "Send"}
+          Send
         </button>
-      </form>
+      </.form>
     </div>
     """
   end

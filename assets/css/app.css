@@ -79,6 +79,11 @@ details summary::marker {
   content: "";
 }
 
+/* Toggle show/hide code label */
+.code-details .hide-label { display: none; }
+.code-details[open] .show-label { display: none; }
+.code-details[open] .hide-label { display: inline; }
+
 /* Fade-in for new events */
 @keyframes fade-in-up {
   from {

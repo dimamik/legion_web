@@ -1,4 +1,6 @@
 defmodule LegionWeb.Components.AgentDetail do
+  @moduledoc false
+
   use LegionWeb, :html
 
   alias LegionWeb.Helpers
@@ -6,7 +8,7 @@ defmodule LegionWeb.Components.AgentDetail do
 
   attr :agent, :map, default: nil
   attr :events, :list, default: []
-  attr :chat_pending, :boolean, default: false
+  attr :chat_form, :any, required: true
   attr :prefix, :string, required: true
 
   def render(%{agent: nil} = assigns) do
@@ -76,7 +78,7 @@ defmodule LegionWeb.Components.AgentDetail do
       <Chat.render
         :if={@agent.pid && @agent.status in [:running, :idle, :waiting_for_human, :done]}
         status={@agent.status}
-        pending={@chat_pending}
+        form={@chat_form}
       />
     </div>
     """

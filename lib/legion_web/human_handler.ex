@@ -55,6 +55,8 @@ defmodule LegionWeb.HumanHandler do
 
       {{ref, from_pid}, pending} ->
         send(from_pid, {:human_response, ref, text})
+        send(LegionWeb.AgentTracker, {:event, run_id, :human_response, %{text: text}})
+        send(LegionWeb.AgentTracker, {:status_change, run_id, :running, %{}})
 
         Phoenix.PubSub.broadcast(
           LegionWeb.PubSub,

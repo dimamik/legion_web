@@ -5,95 +5,77 @@
 # Starts a Phoenix endpoint at http://localhost:4001 with the Legion dashboard
 # mounted at /legion, and spawns a demo agent to populate the UI.
 
-# Load .env from parent legion directory
-for env_path <- ["../legion/.env", "../.env"] do
-  path = Path.expand(env_path, __DIR__)
-
-  if File.exists?(path) do
-    path
-    |> File.read!()
-    |> String.split("\n", trim: true)
-    |> Enum.reject(&String.starts_with?(&1, "#"))
-    |> Enum.each(fn line ->
-      case String.split(line, "=", parts: 2) do
-        [key, value] -> System.put_env(String.trim(key), String.trim(value))
-        _ -> :ok
-      end
-    end)
-  end
-end
-
 # Demo Tools
 
-defmodule DevTools.MathTool do
-  @moduledoc "A simple math helper tool for demo purposes."
+defmodule DevTools.WebTool do
+  @moduledoc "Fetches content from the web."
   use Legion.Tool
 
-  @doc "Adds two numbers together."
-  def add(a, b) when is_number(a) and is_number(b), do: a + b
+  @doc "Searches Hacker News for stories matching a query. Returns a list of maps with title, url, points, and author fields."
+  def hacker_news_search(query, count \\ 10) when is_binary(query) and is_integer(count) and count > 0 do
+    {:ok, %{body: %{"hits" => hits}}} =
+      Req.get("https://hn.algolia.com/api/v1/search",
+        params: [query: query, tags: "story", hitsPerPage: count]
+      )
 
-  @doc "Multiplies two numbers."
-  def multiply(a, b) when is_number(a) and is_number(b), do: a * b
-
-  @doc "Computes factorial of n."
-  def factorial(n) when is_integer(n) and n >= 0 do
-    if n <= 1, do: 1, else: n * factorial(n - 1)
-  end
-end
-
-defmodule DevTools.TextTool do
-  @moduledoc "A text processing tool for demo purposes."
-  use Legion.Tool
-
-  @doc "Counts the number of words in a string."
-  def word_count(text) when is_binary(text) do
-    text |> String.split(~r/\s+/, trim: true) |> length()
+    Enum.map(hits, &Map.take(&1, ["title", "url", "points", "author"]))
   end
 
-  @doc "Reverses a string."
-  def reverse(text) when is_binary(text), do: String.reverse(text)
+  @doc "Fetches a URL and returns the response body as text (truncated to 2000 chars)."
+  def fetch(url) when is_binary(url) do
+    {:ok, %{body: body}} = Req.get(url, max_retries: 0, receive_timeout: 10_000)
 
-  @doc "Converts text to uppercase."
-  def upcase(text) when is_binary(text), do: String.upcase(text)
+    text = if is_binary(body), do: body, else: inspect(body)
+    String.slice(text, 0, 2000)
+  end
 end
 
 # Demo Agents
 
-defmodule DevAgents.MathAgent do
-  @moduledoc "Solves math problems step by step using available tools."
-  use Legion.Agent
-
-  def tools, do: [DevTools.MathTool]
-  def config, do: %{max_iterations: 5}
-end
-
-defmodule DevAgents.TextAgent do
-  @moduledoc "Processes and analyzes text using available tools."
-  use Legion.Agent
-
-  def tools, do: [DevTools.TextTool]
-  def config, do: %{max_iterations: 5}
-end
-
-defmodule DevAgents.CoordinatorAgent do
+defmodule DevAgents.HackerNewsAgent do
   @moduledoc """
-  Coordinates tasks between specialized sub-agents.
-  Can delegate math tasks and text tasks to respective agents.
-  Ask the human if you need clarification on what to do.
+  Searches Hacker News for stories matching a topic and returns the results.
+  You MUST always call hacker_news_search before returning a response.
+  """
+  use Legion.Agent
+
+  def tools, do: [DevTools.WebTool]
+  def config, do: %{max_iterations: 5}
+end
+
+defmodule DevAgents.WebResearchAgent do
+  @moduledoc """
+  Fetches and summarizes content from URLs.
+  Given a list of URLs, fetches each page and extracts key information.
+  """
+  use Legion.Agent
+
+  def tools, do: [DevTools.WebTool]
+  def config, do: %{max_iterations: 8}
+end
+
+defmodule DevAgents.LeadAgent do
+  @moduledoc """
+  Research team lead that asks the human what topic to research,
+  delegates to HackerNewsAgent to find relevant stories, then to WebResearchAgent
+  to fetch and summarize the most interesting ones.
+  Your final summary must NOT contain any links or URLs. Instead, visit all relevant
+  links yourself via WebResearchAgent and formulate your own informed opinion based
+  on the actual content.
   """
   use Legion.Agent
 
   def tools, do: [Legion.Tools.AgentTool, Legion.Tools.HumanTool]
 
   def tool_config(Legion.Tools.AgentTool) do
-    [agents: [DevAgents.MathAgent, DevAgents.TextAgent]]
+    [agents: [DevAgents.HackerNewsAgent, DevAgents.WebResearchAgent]]
   end
 
   def tool_config(Legion.Tools.HumanTool), do: [handler: LegionWeb.HumanHandler]
   def config, do: %{max_iterations: 15}
 end
 
-# Demo agent spawner — starts long-lived agents so the dashboard can interact
+# Demo agent spawner
 defmodule DevAgents.Generator do
   use GenServer
 
@@ -107,11 +89,11 @@ defmodule DevAgents.Generator do
 
   @impl true
   def handle_info(:spawn_demo, state) do
-    {:ok, pid} = Legion.start_link(DevAgents.CoordinatorAgent)
+    {:ok, pid} = Legion.start_link(DevAgents.LeadAgent)
 
     Legion.cast(
       pid,
-      "Ask the human what they'd like to do, then demonstrate both math and text capabilities."
+      "Ask the human what topic they'd like researched, then use HackerNewsAgent to find relevant stories and WebResearchAgent to fetch and summarize the most interesting ones. Return a final synthesis."
     )
 
     {:noreply, state}
@@ -121,7 +103,7 @@ end
 # Phoenix
 
 defmodule DevWeb.Router.RedirectController do
-  use Phoenix.Controller
+  use Phoenix.Controller, formats: [:html]
   def index(conn, _), do: redirect(conn, to: "/legion")
 end
 

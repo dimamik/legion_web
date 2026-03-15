@@ -20,7 +20,7 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:selected_run_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:events, [])
-     |> assign(:chat_pending, false)}
+     |> assign(:chat_form, to_form(%{"text" => ""}, as: :chat))}
   end
 
   @impl true
@@ -45,7 +45,7 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:selected_run_id, run_id)
      |> assign(:selected_agent, agent)
      |> assign(:events, events)
-     |> assign(:chat_pending, false)}
+     |> assign(:chat_form, to_form(%{"text" => ""}, as: :chat))}
   end
 
   def handle_params(_params, _uri, socket) do
@@ -93,23 +93,17 @@ defmodule LegionWeb.DashboardLive do
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   @impl true
-  def handle_event("send_message", %{"text" => text}, socket) when text != "" do
+  def handle_event("send_message", %{"chat" => %{"text" => text}}, socket) when text != "" do
     %{selected_agent: agent} = socket.assigns
 
-    if agent && agent.pid do
-      case agent.status do
-        :waiting_for_human ->
-          HumanHandler.respond(agent.run_id, text)
-
-        status when status in [:idle, :done] ->
-          if Process.alive?(agent.pid), do: Legion.cast(agent.pid, text)
-
-        _ ->
-          :ok
+    if agent && agent.pid && Process.alive?(agent.pid) do
+      case HumanHandler.respond(agent.run_id, text) do
+        :ok -> :ok
+        :not_found -> Legion.cast(agent.pid, text)
       end
     end
 
-    {:noreply, socket}
+    {:noreply, assign(socket, :chat_form, to_form(%{"text" => ""}, as: :chat))}
   end
 
   def handle_event("send_message", _params, socket), do: {:noreply, socket}
@@ -126,7 +120,7 @@ defmodule LegionWeb.DashboardLive do
       <AgentDetail.render
         agent={@selected_agent}
         events={@events}
-        chat_pending={@chat_pending}
+        chat_form={@chat_form}
         prefix={@prefix}
       />
     </div>

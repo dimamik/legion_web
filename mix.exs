@@ -14,9 +14,19 @@ defmodule LegionWeb.MixProject do
       deps: deps(),
       aliases: aliases(),
       listeners: [Phoenix.CodeReloader],
+      # Hex
       package: package(),
+      description: "Dashboard for the Legion AI agent framework",
+      # Docs
       name: "LegionWeb",
-      description: "Dashboard for the Legion AI agent framework"
+      docs: [
+        main: "readme",
+        extras: ["README.md", "LICENSE"],
+        api_reference: false,
+        source_ref: "v#{@version}",
+        source_url: @source_url,
+        formatters: ["html"]
+      ]
     ]
   end
 
@@ -34,8 +44,10 @@ defmodule LegionWeb.MixProject do
     [
       maintainers: ["Dima Mikielewicz"],
       licenses: ["MIT"],
-      files: ~w(lib priv/static* .formatter.exs mix.exs README* LICENSE*),
+      files: ~w(lib priv/static* .formatter.exs mix.exs README* CHANGELOG* LICENSE*),
       links: %{
+        Website: "https://dimamik.com",
+        Changelog: "#{@source_url}/blob/main/CHANGELOG.md",
         GitHub: @source_url
       }
     ]
@@ -43,7 +55,7 @@ defmodule LegionWeb.MixProject do
 
   defp deps do
     [
-      {:legion, path: "../legion"},
+      {:legion, "~> 0.2"},
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 1.0"},
@@ -52,6 +64,8 @@ defmodule LegionWeb.MixProject do
       {:jason, "~> 1.4"},
       {:makeup, "~> 1.0"},
       {:makeup_elixir, "~> 1.0"},
+      {:earmark, "~> 1.4"},
+      {:igniter, "~> 0.5", optional: true},
 
       # Dev
       {:bandit, "~> 1.5", only: :dev},
@@ -59,6 +73,7 @@ defmodule LegionWeb.MixProject do
       {:tailwind, "~> 0.4", only: :dev, runtime: false},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
+      {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
 
       # Test
       {:floki, "~> 0.33", only: :test}
@@ -68,7 +83,19 @@ defmodule LegionWeb.MixProject do
   defp aliases do
     [
       "assets.build": ["tailwind legion_web", "esbuild legion_web"],
-      dev: "run --no-halt dev.exs"
+      dev: "run --no-halt dev.exs",
+      release: [
+        "cmd git tag v#{@version}",
+        "cmd git push",
+        "cmd git push --tags",
+        "hex.publish --yes"
+      ],
+      "test.ci": [
+        "format --check-formatted",
+        "deps.unlock --check-unused",
+        "credo --strict",
+        "test --raise"
+      ]
     ]
   end
 end

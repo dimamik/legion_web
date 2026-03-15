@@ -1,4 +1,6 @@
 defmodule LegionWeb.Components.AgentsList do
+  @moduledoc false
+
   use LegionWeb, :html
 
   alias LegionWeb.Helpers

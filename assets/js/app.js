@@ -2,6 +2,16 @@ import { Socket } from "phoenix";
 import { LiveSocket } from "phoenix_live_view";
 
 const Hooks = {
+  DetailsState: {
+    beforeUpdate() {
+      this._wasOpen = this.el.open;
+    },
+    updated() {
+      if (this._wasOpen !== undefined) {
+        this.el.open = this._wasOpen;
+      }
+    },
+  },
   AutoScroll: {
     mounted() {
       this.scrollToBottom();
