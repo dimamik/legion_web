@@ -93,7 +93,7 @@ defmodule DevAgents.Generator do
 
     Legion.cast(
       pid,
-      "Ask the human what topic they'd like researched, then use HackerNewsAgent to find relevant stories and WebResearchAgent to fetch and summarize the most interesting ones. Return a final synthesis."
+      "Ask the human what topic they'd like researched, then use DevAgents.HackerNewsAgent to find relevant stories and DevAgents.WebResearchAgent to fetch and summarize the most interesting ones. Return a final synthesis."
     )
 
     {:noreply, state}
