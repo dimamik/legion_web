@@ -34,6 +34,11 @@ if Code.ensure_loaded?(Igniter) do
     @moduledoc __MODULE__.Docs.long_doc()
     use Igniter.Mix.Task
 
+    alias Igniter.Code.Common
+    alias Igniter.Code.Module, as: CodeModule
+    alias Igniter.Libs.Phoenix, as: PhoenixLib
+    alias Igniter.Project.Module, as: ProjectModule
+
     @impl Igniter.Mix.Task
     def info(_argv, _composing_task) do
       %Igniter.Mix.Task.Info{
@@ -44,7 +49,7 @@ if Code.ensure_loaded?(Igniter) do
 
     @impl Igniter.Mix.Task
     def igniter(igniter) do
-      case Igniter.Libs.Phoenix.select_router(igniter) do
+      case PhoenixLib.select_router(igniter) do
         {igniter, nil} ->
           Igniter.add_warning(igniter, """
           No Phoenix router found. Phoenix LiveView is required for Legion Web.
@@ -56,7 +61,7 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp update_router(igniter, router) do
-      case Igniter.Project.Module.find_and_update_module(
+      case ProjectModule.find_and_update_module(
              igniter,
              router,
              &do_update_router(igniter, &1)
@@ -79,18 +84,18 @@ if Code.ensure_loaded?(Igniter) do
     end
 
     defp do_update_router(igniter, zipper) do
-      web_module = Igniter.Libs.Phoenix.web_module(igniter)
+      web_module = PhoenixLib.web_module(igniter)
 
-      with {:ok, zipper} <- Igniter.Code.Module.move_to_use(zipper, web_module),
+      with {:ok, zipper} <- CodeModule.move_to_use(zipper, web_module),
            {:ok, zipper} <-
-             {:ok, Igniter.Code.Common.add_code(zipper, "\nimport LegionWeb.Router")} do
+             {:ok, Common.add_code(zipper, "\nimport LegionWeb.Router")} do
         add_route(zipper)
       end
     end
 
     defp add_route(zipper) do
       {:ok,
-       Igniter.Code.Common.add_code(zipper, """
+       Common.add_code(zipper, """
        scope "/" do
          pipe_through :browser
 

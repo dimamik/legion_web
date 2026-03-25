@@ -76,7 +76,7 @@ defmodule LegionWeb.MixProject do
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
 
       # Test
-      {:floki, "~> 0.33", only: :test}
+      {:floki, "~> 0.33", only: [:dev, :test]}
     ]
   end
 

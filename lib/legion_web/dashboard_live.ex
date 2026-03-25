@@ -2,7 +2,7 @@ defmodule LegionWeb.DashboardLive do
   use LegionWeb, :live_view
 
   alias LegionWeb.{AgentTracker, HumanHandler}
-  alias LegionWeb.Components.{AgentsList, AgentDetail}
+  alias LegionWeb.Components.{AgentDetail, AgentsList}
 
   @impl true
   def mount(_params, session, socket) do
@@ -20,6 +20,9 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:selected_run_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:events, [])
+     |> assign(:system_prompt, nil)
+     |> assign(:agent_config, %{})
+     |> assign(:show_prompt_modal, false)
      |> assign(:chat_form, to_form(%{"text" => ""}, as: :chat))}
   end
 
@@ -39,12 +42,23 @@ defmodule LegionWeb.DashboardLive do
 
     agent = run_id && AgentTracker.get_agent(run_id)
     events = if run_id, do: AgentTracker.get_events(run_id), else: []
+    system_prompt = agent && render_markdown(agent.agent_module.system_prompt())
+
+    agent_config =
+      if agent do
+        app_config = Application.get_env(:legion, :config, %{})
+        Map.merge(app_config, agent.agent_module.config())
+      else
+        %{}
+      end
 
     {:noreply,
      socket
      |> assign(:selected_run_id, run_id)
      |> assign(:selected_agent, agent)
      |> assign(:events, events)
+     |> assign(:system_prompt, system_prompt)
+     |> assign(:agent_config, agent_config)
      |> assign(:chat_form, to_form(%{"text" => ""}, as: :chat))}
   end
 
@@ -59,7 +73,9 @@ defmodule LegionWeb.DashboardLive do
      socket
      |> assign(:selected_run_id, nil)
      |> assign(:selected_agent, nil)
-     |> assign(:events, [])}
+     |> assign(:events, [])
+     |> assign(:system_prompt, nil)
+     |> assign(:agent_config, %{})}
   end
 
   # Agent list updates
@@ -98,8 +114,17 @@ defmodule LegionWeb.DashboardLive do
 
     if agent && agent.pid && Process.alive?(agent.pid) do
       case HumanHandler.respond(agent.run_id, text) do
-        :ok -> :ok
-        :not_found -> Legion.cast(agent.pid, text)
+        :ok ->
+          :ok
+
+        :not_found ->
+          require Logger
+
+          Logger.warning(
+            "HumanHandler returned :not_found for run_id=#{inspect(agent.run_id)}, falling back to Legion.cast"
+          )
+
+          Legion.cast(agent.pid, text)
       end
     end
 
@@ -107,6 +132,14 @@ defmodule LegionWeb.DashboardLive do
   end
 
   def handle_event("send_message", _params, socket), do: {:noreply, socket}
+
+  def handle_event("show_prompt", _params, socket) do
+    {:noreply, assign(socket, :show_prompt_modal, true)}
+  end
+
+  def handle_event("close_prompt", _params, socket) do
+    {:noreply, assign(socket, :show_prompt_modal, false)}
+  end
 
   @impl true
   def render(assigns) do
@@ -120,6 +153,9 @@ defmodule LegionWeb.DashboardLive do
       <AgentDetail.render
         agent={@selected_agent}
         events={@events}
+        system_prompt={@system_prompt}
+        show_prompt_modal={@show_prompt_modal}
+        agent_config={@agent_config}
         chat_form={@chat_form}
         prefix={@prefix}
       />
@@ -138,6 +174,12 @@ defmodule LegionWeb.DashboardLive do
       [record | agents]
     end
     |> Enum.sort_by(& &1.started_at, :desc)
+  end
+
+  defp render_markdown(text) do
+    text
+    |> Earmark.as_html!(code_class_prefix: "language-")
+    |> Phoenix.HTML.raw()
   end
 
   defp maybe_update_selected_agent(socket, run_id, record) do

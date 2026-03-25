@@ -12,6 +12,13 @@ const Hooks = {
       }
     },
   },
+  ResetForm: {
+    mounted() {
+      this.el.addEventListener("submit", () => {
+        requestAnimationFrame(() => this.el.reset());
+      });
+    },
+  },
   AutoScroll: {
     mounted() {
       this.scrollToBottom();

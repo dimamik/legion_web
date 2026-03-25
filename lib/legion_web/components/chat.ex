@@ -36,9 +36,16 @@ defmodule LegionWeb.Components.Chat do
           end
         end)}
       </p>
-      <.form for={@form} phx-submit="send_message" id="chat-form" class="flex gap-2.5">
+      <.form
+        for={@form}
+        phx-submit="send_message"
+        id="chat-form"
+        phx-hook="ResetForm"
+        class="flex gap-2.5"
+      >
         <input
           type="text"
+          id="chat-input"
           name={@form[:text].name}
           value={@form[:text].value}
           autofocus

@@ -100,6 +100,77 @@ details summary::marker {
   animation: fade-in-up 0.2s ease-out;
 }
 
+/* Prose — markdown rendering (scoped to system prompt overlay) */
+.prompt-prose {
+  color: #586e75;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.prompt-prose h1, .prompt-prose h2, .prompt-prose h3, .prompt-prose h4 {
+  color: #073642;
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  line-height: 1.3;
+}
+
+.prompt-prose h1 { font-size: 1.25rem; }
+.prompt-prose h2 { font-size: 1.1rem; border-bottom: 1px solid #eee8d5; padding-bottom: 0.3em; }
+.prompt-prose h3 { font-size: 0.95rem; }
+
+.prompt-prose p { margin: 0.6em 0; }
+
+.prompt-prose ul, .prompt-prose ol { margin: 0.5em 0; padding-left: 1.5em; }
+.prompt-prose li { margin: 0.25em 0; }
+.prompt-prose ul { list-style-type: disc; }
+.prompt-prose ol { list-style-type: decimal; }
+
+.prompt-prose code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', ui-monospace, monospace;
+  font-size: 0.8em;
+  background: #eee8d5;
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+  color: #073642;
+}
+
+.prompt-prose pre {
+  background: #eee8d5;
+  border-radius: 6px;
+  padding: 0.8em 1em;
+  margin: 0.8em 0;
+  overflow-x: auto;
+}
+
+.prompt-prose pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.8rem;
+}
+
+.prompt-prose strong { color: #073642; font-weight: 600; }
+.prompt-prose em { font-style: italic; }
+
+.prompt-prose a {
+  color: #268bd2;
+  text-decoration: underline;
+  text-decoration-color: rgba(38, 139, 210, 0.4);
+}
+
+.prompt-prose hr {
+  border: none;
+  border-top: 1px solid #eee8d5;
+  margin: 1.5em 0;
+}
+
+.prompt-prose blockquote {
+  border-left: 3px solid #eee8d5;
+  padding-left: 1em;
+  color: #657b83;
+  margin: 0.8em 0;
+}
+
 /* Makeup syntax highlighting — solarized light palette */
 .highlight .c, .highlight .c1, .highlight .ch, .highlight .cm,
 .highlight .cp, .highlight .cpf, .highlight .cs, .highlight .sd { color: #93a1a1; font-style: italic; }

@@ -3,11 +3,14 @@ defmodule LegionWeb.Components.AgentDetail do
 
   use LegionWeb, :html
 
+  alias LegionWeb.Components.{Chat, Trace}
   alias LegionWeb.Helpers
-  alias LegionWeb.Components.{Trace, Chat}
 
   attr :agent, :map, default: nil
   attr :events, :list, default: []
+  attr :system_prompt, :string, default: nil
+  attr :show_prompt_modal, :boolean, default: false
+  attr :agent_config, :map, default: %{}
   attr :chat_form, :any, required: true
   attr :prefix, :string, required: true
 
@@ -29,7 +32,7 @@ defmodule LegionWeb.Components.AgentDetail do
     assigns = assign(assigns, :is_subagent, is_subagent)
 
     ~H"""
-    <div class="flex-1 flex flex-col overflow-hidden">
+    <div class="flex-1 flex flex-col overflow-hidden relative">
       <%!-- Header --%>
       <div class="px-6 py-4 border-b border-sol-base2 shrink-0 bg-sol-base2/50">
         <div :if={@is_subagent} class="flex items-center gap-1.5 mb-2">
@@ -55,6 +58,13 @@ defmodule LegionWeb.Components.AgentDetail do
             {Helpers.status_label(@agent.status)}
           </span>
           <div class="ml-auto flex items-center gap-4 text-xs text-sol-base00">
+            <button
+              :if={@system_prompt}
+              phx-click="show_prompt"
+              class="text-sol-violet hover:text-sol-violet/80 transition-colors cursor-pointer"
+            >
+              System Prompt
+            </button>
             <span :if={duration = Helpers.format_duration(@agent.started_at, @agent[:finished_at])}>
               {duration}
             </span>
@@ -80,6 +90,35 @@ defmodule LegionWeb.Components.AgentDetail do
         status={@agent.status}
         form={@chat_form}
       />
+
+      <%!-- System Prompt Overlay --%>
+      <div
+        :if={@show_prompt_modal && @system_prompt}
+        class="absolute inset-0 z-10 flex flex-col bg-sol-base3"
+        phx-window-keydown="close_prompt"
+        phx-key="Escape"
+      >
+        <div class="flex items-center justify-between px-6 py-4 border-b border-sol-base2 shrink-0">
+          <div class="flex items-center gap-3">
+            <h3 class="text-sm font-semibold text-sol-base02">System Prompt</h3>
+            <span
+              :for={{key, val} <- @agent_config}
+              class="text-[10px] px-2 py-0.5 rounded-full bg-sol-base2 text-sol-base00"
+            >
+              {key}: {val}
+            </span>
+          </div>
+          <button
+            phx-click="close_prompt"
+            class="w-7 h-7 flex items-center justify-center rounded text-sol-base1 hover:text-sol-base01 hover:bg-sol-base2 transition-colors cursor-pointer"
+          >
+            &times;
+          </button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-6 py-6">
+          <div class="prompt-prose max-w-3xl">{@system_prompt}</div>
+        </div>
+      </div>
     </div>
     """
   end

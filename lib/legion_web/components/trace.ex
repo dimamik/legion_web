@@ -58,27 +58,66 @@ defmodule LegionWeb.Components.Trace do
   end
 
   # Attach eval_stop results to preceding eval_and_complete/eval_and_continue llm_stop events,
-  # then hide those eval_stop rows (the result is shown inline on the llm_stop row)
+  # then hide those eval_stop rows (the result is shown inline on the llm_stop row).
+  # Buffers interleaved events (e.g. sub-agent telemetry) so they don't break the pairing.
   defp merge_eval_results(events) do
     {result, pending} =
       Enum.reduce(events, {[], nil}, fn
-        %{type: :eval_stop, data: eval_data}, {acc, %{} = llm_event} ->
-          merged = put_in(llm_event.data[:eval_result], eval_data[:result])
-          {acc ++ [merged], nil}
+        %{type: :eval_stop, data: eval_data} = eval_stop, {acc, {llm_event, between}} ->
+          if same_agent?(llm_event, eval_stop) do
+            merged = put_in(llm_event.data[:eval_result], eval_data[:result])
+            {acc ++ [merged] ++ between, nil}
+          else
+            {acc, {llm_event, between ++ [eval_stop]}}
+          end
 
-        %{type: :eval_start}, {acc, %{} = _llm_event} = state ->
-          # Skip eval_start between llm_stop and eval_stop
-          {acc, elem(state, 1)}
+        %{type: :eval_start} = eval_start, {acc, {llm_event, between}} ->
+          if same_agent?(llm_event, eval_start) do
+            {acc, {llm_event, between}}
+          else
+            {acc, {llm_event, between ++ [eval_start]}}
+          end
 
-        event, {acc, %{} = llm_event} ->
-          {acc ++ [llm_event, event], nil}
+        event, {acc, {llm_event, between}} ->
+          {acc, {llm_event, between ++ [event]}}
 
         %{type: :llm_stop, data: %{object: %{"action" => action}}} = event, {acc, nil}
         when action in ["eval_and_complete", "eval_and_continue"] ->
-          {acc, event}
+          {acc, {event, []}}
 
         event, {acc, nil} ->
           {acc ++ [event], nil}
+      end)
+
+    case pending do
+      nil -> result
+      {event, between} -> result ++ [event] ++ between
+    end
+  end
+
+  # Hide eval_and_complete llm_stop when followed by a return/done llm_stop.
+  # Transfers eval_result to the return/done event so it's still displayed.
+  defp remove_redundant_eval_and_complete(events) do
+    {result, pending} =
+      Enum.reduce(events, {[], nil}, fn
+        %{type: :llm_stop, data: %{object: %{"action" => action}}} = return_event,
+        {acc, %{type: :llm_stop, data: %{object: %{"action" => "eval_and_complete"}} = eval_data}}
+        when action in ["return", "done"] ->
+          merged = put_in(return_event.data[:eval_result], eval_data[:eval_result])
+          {acc ++ [merged], nil}
+
+        event, {acc, nil} ->
+          if match?(
+               %{type: :llm_stop, data: %{object: %{"action" => "eval_and_complete"}}},
+               event
+             ) do
+            {acc, event}
+          else
+            {acc ++ [event], nil}
+          end
+
+        event, {acc, pending} ->
+          {acc ++ [pending, event], nil}
       end)
 
     case pending do
@@ -87,70 +126,47 @@ defmodule LegionWeb.Components.Trace do
     end
   end
 
-  # Hide eval_and_complete llm_stop when followed by a return/done llm_stop
-  # (the final result will be shown on the return/done row)
-  defp remove_redundant_eval_and_complete(events) do
-    events
-    |> Enum.chunk_every(2, 1, [:end])
-    |> Enum.flat_map(fn
-      [
-        %{type: :llm_stop, data: %{object: %{"action" => "eval_and_complete"}}},
-        %{type: :llm_stop, data: %{object: %{"action" => action}}}
-      ]
-      when action in ["return", "done"] ->
-        []
+  # Group sub-agent events into collapsible sections.
+  # Events from the same sub-agent run (by run_id) are merged into one group,
+  # even if interleaved with events from other sub-agents (e.g. parallel execution).
+  # Separate invocations of the same agent module get separate groups.
+  defp group_subagent_events(events) do
+    {result, agents} =
+      Enum.reduce(events, {[], %{}}, fn event, {result, agents} ->
+        if subagent_event?(event) do
+          accumulate_subagent_event(event, result, agents)
+        else
+          {result ++ [{:event, event}], agents}
+        end
+      end)
 
-      [event, _] ->
-        [event]
+    Enum.map(result, fn
+      {:subagent_placeholder, key} ->
+        {name, sub_events} = Map.fetch!(agents, key)
+        {:subagent, name, sub_events}
 
-      [event] ->
-        [event]
+      other ->
+        other
     end)
   end
 
-  # Group consecutive sub-agent events into collapsible sections
-  defp group_subagent_events(events) do
-    {result, pending} = Enum.reduce(events, {[], nil}, &accumulate_event/2)
-
-    case pending do
-      nil -> result
-      {name, sub_events} -> result ++ [{:subagent, name, sub_events}]
-    end
-  end
-
-  defp accumulate_event(event, {result, pending}) do
-    if subagent_event?(event) do
-      accumulate_subagent_event(event, result, pending)
-    else
-      flush_pending(event, result, pending)
-    end
-  end
-
-  defp accumulate_subagent_event(event, result, pending) do
+  defp accumulate_subagent_event(event, result, agents) do
+    key = event.data[:run_id]
     name = agent_short_name(event.data[:agent])
 
-    case pending do
-      {^name, sub_events} ->
-        {result, {name, sub_events ++ [event]}}
-
-      nil ->
-        {result, {name, [event]}}
-
-      {other_name, sub_events} ->
-        {result ++ [{:subagent, other_name, sub_events}], {name, [event]}}
-    end
-  end
-
-  defp flush_pending(event, result, pending) do
-    case pending do
-      nil -> {result ++ [{:event, event}], nil}
-      {name, sub_events} -> {result ++ [{:subagent, name, sub_events}, {:event, event}], nil}
+    if Map.has_key?(agents, key) do
+      {result, Map.update!(agents, key, fn {n, evts} -> {n, evts ++ [event]} end)}
+    else
+      {result ++ [{:subagent_placeholder, key}], Map.put(agents, key, {name, [event]})}
     end
   end
 
   defp hidden_event?(%{type: type}) when type in @hidden_types, do: true
   defp hidden_event?(%{type: :eval_stop, data: %{success: true}}), do: true
   defp hidden_event?(_), do: false
+
+  defp same_agent?(%{data: %{run_id: id1}}, %{data: %{run_id: id2}}), do: id1 == id2
+  defp same_agent?(_, _), do: true
 
   defp subagent_event?(%{run_id: parent_run_id, data: %{run_id: child_run_id}})
        when parent_run_id != child_run_id,
@@ -363,8 +379,8 @@ defmodule LegionWeb.Components.Trace do
   defp extract_human_question(nil), do: nil
 
   defp extract_human_question(code) when is_binary(code) do
-    case Regex.run(~r/HumanTool\.ask\(\s*"([^"]+)"\s*\)/, code) do
-      [_, question] -> question
+    case Regex.run(~r/HumanTool\.ask\(\s*"((?:[^"\\]|\\.)*)"\s*\)/, code) do
+      [_, question] -> String.replace(question, "\\\"", "\"")
       _ -> nil
     end
   end
