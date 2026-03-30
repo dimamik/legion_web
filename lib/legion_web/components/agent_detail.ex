@@ -73,14 +73,6 @@ defmodule LegionWeb.Components.AgentDetail do
         </div>
       </div>
 
-      <%!-- Task --%>
-      <div :if={@agent.task} class="px-6 py-3 border-b border-sol-base2 shrink-0">
-        <p class="text-[10px] text-sol-base00 font-medium uppercase tracking-[0.15em] mb-1">
-          Task
-        </p>
-        <p class="text-sm text-sol-base02 leading-relaxed">{@agent.task}</p>
-      </div>
-
       <%!-- Trace --%>
       <Trace.render events={@events} />
 

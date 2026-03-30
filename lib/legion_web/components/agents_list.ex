@@ -95,15 +95,7 @@ defmodule LegionWeb.Components.AgentsList do
             {Helpers.status_label(@agent.status)}
           </span>
         </div>
-        <p
-          :if={@agent.task}
-          class={[
-            "text-xs truncate text-sol-base00",
-            if(@is_subagent, do: "pl-7", else: "pl-4.5")
-          ]}
-        >
-          {Helpers.truncate(@agent.task, 55)}
-        </p>
+
         <div class={[
           "flex gap-3 mt-1 text-[10px] text-sol-base00",
           if(@is_subagent, do: "pl-7", else: "pl-4.5")

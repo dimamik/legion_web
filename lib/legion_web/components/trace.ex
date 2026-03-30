@@ -188,7 +188,7 @@ defmodule LegionWeb.Components.Trace do
     ~H"""
     <div class="flex gap-2 items-start bg-sol-blue/10 border border-sol-blue/20 rounded-lg px-3 py-2.5 my-2">
       <span class="shrink-0 w-16 tabular-nums">{format_ts(@event.timestamp)}</span>
-      <span class="flex-1">{@event.data[:message]}</span>
+      <span class="flex-1">{Helpers.truncate(@event.data[:message], 200)}</span>
     </div>
     """
   end
@@ -197,7 +197,7 @@ defmodule LegionWeb.Components.Trace do
     ~H"""
     <div class="flex gap-2 items-start bg-sol-yellow/10 border border-sol-yellow/20 rounded-lg px-3 py-2.5 my-2">
       <span class="shrink-0 w-16 tabular-nums">{format_ts(@event.timestamp)}</span>
-      <span class="flex-1">{@event.data[:text]}</span>
+      <span class="flex-1">{Helpers.truncate(@event.data[:text], 200)}</span>
     </div>
     """
   end
