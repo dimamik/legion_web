@@ -5,256 +5,145 @@ defmodule LegionWeb.Components.Trace do
 
   alias LegionWeb.Helpers
 
-  attr :events, :list, required: true
+  attr :items, :list, required: true
 
   def render(assigns) do
-    assigns = assign(assigns, :display_events, displayable_events(assigns.events))
-
     ~H"""
     <div
       id="trace-container"
       class="flex-1 overflow-y-auto px-6 py-4 space-y-1 font-mono text-xs text-black"
       phx-hook="AutoScroll"
     >
-      <div :if={@events == []} class="flex items-center justify-center h-full">
+      <div :if={@items == []} class="flex items-center justify-center h-full">
         <p class="text-black/40 italic">Waiting for events&hellip;</p>
       </div>
-      <%= for group <- @display_events do %>
-        <%= case group do %>
-          <% {:event, event} -> %>
-            <div id={"event-#{event.seq}"} class="animate-fade-in">
-              <.event_row event={event} />
-            </div>
-          <% {:subagent, agent_name, events} -> %>
+      <%= for item <- @items do %>
+        <%= case item do %>
+          <% {:subagent, name, sub_items} -> %>
             <details
-              id={"subagent-#{hd(events).seq}"}
+              id={"subagent-#{sub_item_seq(sub_items)}"}
               class="animate-fade-in my-1"
               phx-hook="DetailsState"
             >
               <summary class="cursor-pointer flex gap-2 items-center py-1 px-3 bg-sol-base2/50 border border-sol-base1/20 rounded-lg hover:bg-sol-base2">
-                <span class="text-sol-cyan font-semibold text-xs">{agent_name}</span>
-                <span class="text-black/50 text-xs">{length(events)} events</span>
+                <span class="text-sol-cyan font-semibold text-xs">{name}</span>
+                <span class="text-black/50 text-xs">{length(sub_items)} events</span>
               </summary>
               <div class="ml-4 pl-3 border-l-2 border-sol-cyan/30 space-y-1 py-1">
-                <div :for={event <- events} id={"event-#{event.seq}"}>
-                  <.event_row event={event} />
+                <div :for={sub <- sub_items} id={"item-#{item_seq(sub)}"}>
+                  <.render_item item={sub} />
                 </div>
               </div>
             </details>
+          <% {_type, data} -> %>
+            <div id={"item-#{data.seq}"} class="animate-fade-in">
+              <.render_item item={item} />
+            </div>
         <% end %>
       <% end %>
     </div>
     """
   end
 
-  @hidden_types [:iteration_start, :iteration_stop, :eval_start, :llm_start, :message_stop]
+  # Item renderers
 
-  defp displayable_events(events) do
-    events
-    |> merge_eval_results()
-    |> Enum.reject(&hidden_event?/1)
-    |> remove_redundant_eval_and_complete()
-    |> group_subagent_events()
-  end
+  defp render_item(%{item: {:message, data}} = assigns) do
+    assigns = assign(assigns, :data, data)
 
-  # Attach eval_stop results to preceding eval_and_complete/eval_and_continue llm_stop events,
-  # then hide those eval_stop rows (the result is shown inline on the llm_stop row).
-  # Buffers interleaved events (e.g. sub-agent telemetry) so they don't break the pairing.
-  defp merge_eval_results(events) do
-    {result, pending} =
-      Enum.reduce(events, {[], nil}, fn
-        %{type: :eval_stop, data: eval_data} = eval_stop, {acc, {llm_event, between}} ->
-          if same_agent?(llm_event, eval_stop) do
-            merged = put_in(llm_event.data[:eval_result], eval_data[:result])
-            {acc ++ [merged] ++ between, nil}
-          else
-            {acc, {llm_event, between ++ [eval_stop]}}
-          end
-
-        %{type: :eval_start} = eval_start, {acc, {llm_event, between}} ->
-          if same_agent?(llm_event, eval_start) do
-            {acc, {llm_event, between}}
-          else
-            {acc, {llm_event, between ++ [eval_start]}}
-          end
-
-        event, {acc, {llm_event, between}} ->
-          {acc, {llm_event, between ++ [event]}}
-
-        %{type: :llm_stop, data: %{object: %{"action" => action}}} = event, {acc, nil}
-        when action in ["eval_and_complete", "eval_and_continue"] ->
-          {acc, {event, []}}
-
-        event, {acc, nil} ->
-          {acc ++ [event], nil}
-      end)
-
-    case pending do
-      nil -> result
-      {event, between} -> result ++ [event] ++ between
-    end
-  end
-
-  # Hide eval_and_complete llm_stop when followed by a return/done llm_stop.
-  # Transfers eval_result to the return/done event so it's still displayed.
-  defp remove_redundant_eval_and_complete(events) do
-    {result, pending} =
-      Enum.reduce(events, {[], nil}, fn
-        %{type: :llm_stop, data: %{object: %{"action" => action}}} = return_event,
-        {acc, %{type: :llm_stop, data: %{object: %{"action" => "eval_and_complete"}} = eval_data}}
-        when action in ["return", "done"] ->
-          merged = put_in(return_event.data[:eval_result], eval_data[:eval_result])
-          {acc ++ [merged], nil}
-
-        event, {acc, nil} ->
-          if match?(
-               %{type: :llm_stop, data: %{object: %{"action" => "eval_and_complete"}}},
-               event
-             ) do
-            {acc, event}
-          else
-            {acc ++ [event], nil}
-          end
-
-        event, {acc, pending} ->
-          {acc ++ [pending, event], nil}
-      end)
-
-    case pending do
-      nil -> result
-      event -> result ++ [event]
-    end
-  end
-
-  # Group sub-agent events into collapsible sections.
-  # Events from the same sub-agent run (by run_id) are merged into one group,
-  # even if interleaved with events from other sub-agents (e.g. parallel execution).
-  # Separate invocations of the same agent module get separate groups.
-  defp group_subagent_events(events) do
-    {result, agents} =
-      Enum.reduce(events, {[], %{}}, fn event, {result, agents} ->
-        if subagent_event?(event) do
-          accumulate_subagent_event(event, result, agents)
-        else
-          {result ++ [{:event, event}], agents}
-        end
-      end)
-
-    Enum.map(result, fn
-      {:subagent_placeholder, key} ->
-        {name, sub_events} = Map.fetch!(agents, key)
-        {:subagent, name, sub_events}
-
-      other ->
-        other
-    end)
-  end
-
-  defp accumulate_subagent_event(event, result, agents) do
-    key = event.data[:run_id]
-    name = agent_short_name(event.data[:agent])
-
-    if Map.has_key?(agents, key) do
-      {result, Map.update!(agents, key, fn {n, evts} -> {n, evts ++ [event]} end)}
-    else
-      {result ++ [{:subagent_placeholder, key}], Map.put(agents, key, {name, [event]})}
-    end
-  end
-
-  defp hidden_event?(%{type: type}) when type in @hidden_types, do: true
-  defp hidden_event?(%{type: :eval_stop, data: %{success: true}}), do: true
-  defp hidden_event?(_), do: false
-
-  defp same_agent?(%{data: %{run_id: id1}}, %{data: %{run_id: id2}}), do: id1 == id2
-  defp same_agent?(_, _), do: true
-
-  defp subagent_event?(%{run_id: parent_run_id, data: %{run_id: child_run_id}})
-       when parent_run_id != child_run_id,
-       do: true
-
-  defp subagent_event?(_), do: false
-
-  defp agent_short_name(nil), do: "sub-agent"
-
-  defp agent_short_name(module) when is_atom(module) do
-    module |> Module.split() |> List.last()
-  end
-
-  defp agent_short_name(other), do: inspect(other)
-
-  # Event rows
-
-  defp event_row(%{event: %{type: :message_start}} = assigns) do
     ~H"""
     <div class="flex gap-2 items-start bg-sol-blue/10 border border-sol-blue/20 rounded-lg px-3 py-2.5 my-2">
-      <span class="shrink-0 w-16 tabular-nums">{format_ts(@event.timestamp)}</span>
-      <span class="flex-1">{Helpers.truncate(@event.data[:message], 200)}</span>
+      <span class="shrink-0 w-16 tabular-nums">{format_ts(@data.ts)}</span>
+      <span class="flex-1">{Helpers.truncate(@data.text, 200)}</span>
     </div>
     """
   end
 
-  defp event_row(%{event: %{type: :human_response}} = assigns) do
+  defp render_item(%{item: {:human_response, data}} = assigns) do
+    assigns = assign(assigns, :data, data)
+
     ~H"""
     <div class="flex gap-2 items-start bg-sol-yellow/10 border border-sol-yellow/20 rounded-lg px-3 py-2.5 my-2">
-      <span class="shrink-0 w-16 tabular-nums">{format_ts(@event.timestamp)}</span>
-      <span class="flex-1">{Helpers.truncate(@event.data[:text], 200)}</span>
+      <span class="shrink-0 w-16 tabular-nums">{format_ts(@data.ts)}</span>
+      <span class="flex-1">{Helpers.truncate(@data.text, 200)}</span>
     </div>
     """
   end
 
-  defp event_row(%{event: %{type: :message_exception}} = assigns) do
+  defp render_item(%{item: {:exception, data}} = assigns) do
+    assigns = assign(assigns, :data, data)
+
     ~H"""
     <div class="flex gap-2 items-start bg-sol-red/10 border border-sol-red/20 rounded-lg px-3 py-2.5 my-2">
-      <span class="shrink-0 w-16 tabular-nums">{format_ts(@event.timestamp)}</span>
+      <span class="shrink-0 w-16 tabular-nums">{format_ts(@data.ts)}</span>
       <span class="text-sol-red font-semibold">error</span>
-      <span class="text-sol-red/80 flex-1">{format_exception(@event.data)}</span>
+      <span class="text-sol-red/80 flex-1">{format_exception(@data.reason)}</span>
     </div>
     """
   end
 
-  defp event_row(%{event: %{type: :llm_stop}} = assigns) do
+  defp render_item(%{item: {:step, data}} = assigns) do
+    assigns =
+      assigns
+      |> assign(:data, data)
+      |> assign(:human_question, extract_human_question(data.code))
+
     ~H"""
     <div class="flex gap-2 items-start py-0.5">
-      <span class="shrink-0 w-16 tabular-nums">{format_ts(@event.timestamp)}</span>
-      {if object = @event.data[:object] do
-        assigns |> assign(:object, object) |> render_llm_response()
-      else
-        assigns |> render_llm_response_fallback()
-      end}
-      <span class="text-black/50 ml-auto shrink-0">
-        {format_duration(@event.data[:duration])}
+      <span class="shrink-0 w-16 tabular-nums">{format_ts(@data.ts)}</span>
+      <%= if @data.action do %>
+        <.render_step_body data={@data} human_question={@human_question} />
+      <% else %>
+        <span>(response)</span>
+      <% end %>
+      <span :if={@data.duration} class="text-black/50 ml-auto shrink-0">
+        {format_duration(@data.duration)}
       </span>
     </div>
     """
   end
 
-  defp event_row(%{event: %{type: :eval_stop}} = assigns) do
-    ~H"""
-    {if @event.data[:success] do
-      assigns |> render_eval_success()
-    else
-      assigns |> render_eval_error()
-    end}
-    """
-  end
+  defp render_item(%{item: {:eval_error, data}} = assigns) do
+    assigns = assign(assigns, :data, data)
 
-  defp event_row(assigns) do
     ~H"""
-    <div class="flex gap-2 items-start py-0.5">
-      <span class="shrink-0 w-16 tabular-nums">{format_ts(@event.timestamp)}</span>
-      <span>{inspect(@event.type)}</span>
+    <div class={[
+      "flex gap-2 items-start py-0.5",
+      @data.is_timeout && "bg-sol-orange/8 border border-sol-orange/20 rounded-lg p-2.5 my-1"
+    ]}>
+      <span class="shrink-0 w-16 tabular-nums">{format_ts(@data.ts)}</span>
+      <span class={if @data.is_timeout, do: "text-sol-orange", else: "text-sol-red"}>
+        {if @data.is_timeout, do: "\u23F1", else: "\u2717"}
+      </span>
+      <div class="flex-1">
+        <pre class={[
+          "p-3 rounded-lg overflow-x-auto whitespace-pre-wrap text-xs",
+          if(@data.is_timeout,
+            do: "text-sol-orange",
+            else: "bg-sol-red/8 border border-sol-red/20 text-sol-red"
+          )
+        ]}>{format_eval_error(@data.error)}</pre>
+      </div>
     </div>
     """
   end
 
-  # Sub-renders
+  defp render_item(%{item: {:unknown, data}} = assigns) do
+    assigns = assign(assigns, :data, data)
 
-  defp render_llm_response(assigns) do
-    assigns =
-      assigns
-      |> assign(:human_question, extract_human_question(assigns.object["code"]))
-      |> assign(:eval_result, assigns.event.data[:eval_result])
+    ~H"""
+    <div class="flex gap-2 items-start py-0.5">
+      <span class="shrink-0 w-16 tabular-nums">{format_ts(@data.ts)}</span>
+      <span>{inspect(@data.type)}</span>
+    </div>
+    """
+  end
 
+  # Step sub-renders
+
+  attr :data, :map, required: true
+  attr :human_question, :string, default: nil
+
+  defp render_step_body(assigns) do
     ~H"""
     <div class="flex-1">
       <%= if @human_question do %>
@@ -263,89 +152,80 @@ defmodule LegionWeb.Components.Trace do
           <span class="text-black">{@human_question}</span>
         </div>
       <% else %>
-        <span class={action_class(@object["action"])}>{@object["action"]}</span>
-        <details :if={@object["code"] && @object["code"] != ""} class="mt-1.5 code-details">
+        <span class={action_class(@data.action)}>{@data.action}</span>
+        <details :if={@data.code && @data.code != ""} class="mt-1.5 code-details">
           <summary class="cursor-pointer text-black/60 hover:text-black text-xs">
             <span class="show-label">show code</span>
             <span class="hide-label">hide code</span>
           </summary>
-          <pre class="mt-1.5 p-3 bg-sol-base2 rounded-lg overflow-x-auto whitespace-pre-wrap border border-sol-base1/20 highlight">{Helpers.highlight_elixir(@object["code"])}</pre>
+          <pre class="mt-1.5 p-3 bg-sol-base2 rounded-lg overflow-x-auto whitespace-pre-wrap border border-sol-base1/20 highlight">{Helpers.highlight_elixir(@data.code)}</pre>
         </details>
         <div
-          :if={@object["action"] in ["return", "done"] && has_result?(@object["result"])}
+          :if={@data.action in ["return", "done"] && has_result?(@data.result)}
           class="mt-1.5 p-3 bg-sol-green/8 border border-sol-green/20 rounded-lg"
         >
           <div class="text-black prose prose-sm max-w-none">
-            {render_markdown(extract_response(@object["result"]))}
+            {render_markdown(extract_response(@data.result))}
           </div>
         </div>
-        <div
-          :if={has_result?(@eval_result)}
-          class="mt-1.5 p-3 bg-sol-base2 border border-sol-base1/20 rounded-lg"
-        >
-          <pre class="text-xs whitespace-pre-wrap">{format_eval_result(@eval_result)}</pre>
-        </div>
+        <.render_eval_inline eval={@data.eval} />
       <% end %>
     </div>
     """
   end
 
-  defp render_llm_response_fallback(assigns) do
-    ~H"""
-    <span>(response)</span>
-    """
-  end
+  attr :eval, :map, default: nil
 
-  defp render_eval_success(assigns) do
-    has_error = error_result?(assigns.event.data[:result])
-    assigns = assign(assigns, :has_error, has_error)
+  defp render_eval_inline(%{eval: nil} = assigns), do: ~H""
+
+  defp render_eval_inline(%{eval: %{success: true}} = assigns) do
+    assigns = assign(assigns, :has_error, error_result?(assigns.eval.result))
 
     ~H"""
-    <div class="flex gap-2 items-start py-0.5">
-      <span class="shrink-0 w-16 tabular-nums">{format_ts(@event.timestamp)}</span>
-      <span class={if @has_error, do: "text-sol-red", else: "text-sol-green"}>
-        {if @has_error, do: "✗", else: "⚡"}
-      </span>
-      <div class="flex-1">
-        <pre class={[
-          "p-3 rounded-lg overflow-x-auto whitespace-pre-wrap text-xs",
-          if(@has_error,
-            do: "bg-sol-red/8 border border-sol-red/20 text-sol-red",
-            else: "bg-sol-base2 border border-sol-base1/20 text-black"
-          )
-        ]}>{format_eval_result(@event.data[:result])}</pre>
-      </div>
+    <div
+      :if={has_result?(@eval.result)}
+      class={[
+        "mt-1.5 p-3 rounded-lg border overflow-x-auto",
+        if(@has_error,
+          do: "bg-sol-red/8 border-sol-red/20",
+          else: "bg-sol-base2 border-sol-base1/20"
+        )
+      ]}
+    >
+      <pre class={[
+        "text-xs whitespace-pre-wrap",
+        @has_error && "text-sol-red"
+      ]}>{format_eval_result(@eval.result)}</pre>
     </div>
     """
   end
 
-  defp render_eval_error(assigns) do
-    is_timeout = match?(%{type: :timeout}, assigns.event.data[:error])
-    assigns = assign(assigns, :is_timeout, is_timeout)
+  defp render_eval_inline(assigns) do
+    assigns = assign(assigns, :is_timeout, match?(%{type: :timeout}, assigns.eval.error))
 
     ~H"""
     <div class={[
-      "flex gap-2 items-start py-0.5",
-      @is_timeout && "bg-sol-orange/8 border border-sol-orange/20 rounded-lg p-2.5 my-1"
+      "mt-1.5 p-3 rounded-lg overflow-x-auto",
+      if(@is_timeout,
+        do: "bg-sol-orange/8 border border-sol-orange/20",
+        else: "bg-sol-red/8 border border-sol-red/20"
+      )
     ]}>
-      <span class="shrink-0 w-16 tabular-nums">{format_ts(@event.timestamp)}</span>
-      <span class={if @is_timeout, do: "text-sol-orange", else: "text-sol-red"}>
-        {if @is_timeout, do: "⏱", else: "✗"}
-      </span>
-      <div class="flex-1">
-        <pre class={[
-          "p-3 rounded-lg overflow-x-auto whitespace-pre-wrap text-xs",
-          if(@is_timeout,
-            do: "text-sol-orange",
-            else: "bg-sol-red/8 border border-sol-red/20 text-sol-red"
-          )
-        ]}>{format_eval_error(@event.data[:error])}</pre>
-      </div>
+      <pre class={[
+        "text-xs whitespace-pre-wrap",
+        if(@is_timeout, do: "text-sol-orange", else: "text-sol-red")
+      ]}>{format_eval_error(@eval.error)}</pre>
     </div>
     """
   end
 
   # Helpers
+
+  defp item_seq({_type, %{seq: seq}}), do: seq
+  defp item_seq(_), do: 0
+
+  defp sub_item_seq([first | _]), do: item_seq(first)
+  defp sub_item_seq(_), do: 0
 
   defp has_result?(nil), do: false
   defp has_result?(""), do: false
@@ -370,8 +250,7 @@ defmodule LegionWeb.Components.Trace do
   defp format_duration(nil), do: nil
 
   defp format_duration(duration) when is_integer(duration) do
-    ms = div(duration, 1_000_000)
-    Helpers.format_ms(ms)
+    Helpers.format_ms(div(duration, 1_000_000))
   end
 
   defp format_duration(_), do: nil
@@ -395,7 +274,7 @@ defmodule LegionWeb.Components.Trace do
     formatted = inspect(result, pretty: true, limit: 100, printable_limit: 2000)
 
     if String.length(formatted) > 1500 do
-      String.slice(formatted, 0, 1500) <> "\n… (truncated)"
+      String.slice(formatted, 0, 1500) <> "\n... (truncated)"
     else
       formatted
     end
@@ -405,13 +284,8 @@ defmodule LegionWeb.Components.Trace do
   defp format_eval_error(error) when is_exception(error), do: Exception.message(error)
   defp format_eval_error(error), do: inspect(error, pretty: true, limit: 50)
 
-  defp format_exception(data) do
-    case data do
-      %{reason: reason} when is_exception(reason) -> Exception.message(reason)
-      %{reason: reason} -> inspect(reason, pretty: true, limit: 50)
-      _ -> "Unknown error"
-    end
-  end
+  defp format_exception(reason) when is_exception(reason), do: Exception.message(reason)
+  defp format_exception(reason), do: inspect(reason, pretty: true, limit: 50)
 
   defp extract_response(result) when is_map(result) do
     case Map.get(result, "response") do

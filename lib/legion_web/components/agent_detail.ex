@@ -7,7 +7,7 @@ defmodule LegionWeb.Components.AgentDetail do
   alias LegionWeb.Helpers
 
   attr :agent, :map, default: nil
-  attr :events, :list, default: []
+  attr :trace_items, :list, default: []
   attr :system_prompt, :string, default: nil
   attr :show_prompt_modal, :boolean, default: false
   attr :agent_config, :map, default: %{}
@@ -74,7 +74,7 @@ defmodule LegionWeb.Components.AgentDetail do
       </div>
 
       <%!-- Trace --%>
-      <Trace.render events={@events} />
+      <Trace.render items={@trace_items} />
 
       <%!-- Chat --%>
       <Chat.render
