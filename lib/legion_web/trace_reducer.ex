@@ -53,11 +53,11 @@ defmodule LegionWeb.TraceReducer do
     item = classify(event)
 
     if Map.has_key?(state.subagents, key) do
-      subagents = Map.update!(state.subagents, key, fn {n, items} -> {n, items ++ [item]} end)
+      subagents = Map.update!(state.subagents, key, fn {n, items} -> {n, [item | items]} end)
       %{state | subagents: subagents}
     else
       subagents = Map.put(state.subagents, key, {name, [item]})
-      %{state | items: state.items ++ [{:subagent_placeholder, key}], subagents: subagents}
+      %{state | items: [{:subagent_placeholder, key} | state.items], subagents: subagents}
     end
   end
 
@@ -95,12 +95,17 @@ defmodule LegionWeb.TraceReducer do
     if llm_event.data.object["action"] == "eval_and_complete" do
       %{
         state
-        | items: state.items ++ between_items,
+        | items: Enum.reverse(between_items) ++ state.items,
           pending: {:maybe_collapse, step},
           between: []
       }
     else
-      %{state | items: state.items ++ [step] ++ between_items, pending: nil, between: []}
+      %{
+        state
+        | items: Enum.reverse(between_items, [step | state.items]),
+          pending: nil,
+          between: []
+      }
     end
   end
 
@@ -109,7 +114,7 @@ defmodule LegionWeb.TraceReducer do
   end
 
   defp process(%{pending: {:awaiting_eval, _}} = state, event) do
-    %{state | between: state.between ++ [event]}
+    %{state | between: [event | state.between]}
   end
 
   # --- pending = {:maybe_collapse, complete_step} ---
@@ -121,7 +126,7 @@ defmodule LegionWeb.TraceReducer do
        when action in ~w(return done) do
     {:step, return_data} = build_step(event, nil)
     merged = {:step, %{return_data | eval: complete_data.eval}}
-    %{state | items: state.items ++ [merged], pending: nil, between: []}
+    %{state | items: [merged | state.items], pending: nil, between: []}
   end
 
   defp process(%{pending: {:maybe_collapse, _}} = state, event) do
@@ -135,11 +140,11 @@ defmodule LegionWeb.TraceReducer do
   defp flush_pending(%{pending: {:awaiting_eval, llm_event}, between: between} = state) do
     step = build_step(llm_event, nil)
     between_items = Enum.map(between, &classify/1)
-    %{state | items: state.items ++ [step] ++ between_items, pending: nil, between: []}
+    %{state | items: Enum.reverse(between_items, [step | state.items]), pending: nil, between: []}
   end
 
   defp flush_pending(%{pending: {:maybe_collapse, step}} = state) do
-    %{state | items: state.items ++ [step], pending: nil, between: []}
+    %{state | items: [step | state.items], pending: nil, between: []}
   end
 
   # Item builders
@@ -199,13 +204,15 @@ defmodule LegionWeb.TraceReducer do
      }}
   end
 
-  defp append(state, item), do: %{state | items: state.items ++ [item]}
+  defp append(state, item), do: %{state | items: [item | state.items]}
 
   defp resolve_subagents(%{items: items, subagents: subagents}) do
-    Enum.map(items, fn
+    items
+    |> Enum.reverse()
+    |> Enum.map(fn
       {:subagent_placeholder, key} ->
         {name, sub_items} = Map.fetch!(subagents, key)
-        {:subagent, name, sub_items}
+        {:subagent, name, Enum.reverse(sub_items)}
 
       item ->
         item

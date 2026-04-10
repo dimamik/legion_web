@@ -1,5 +1,7 @@
 import Config
 
+config :logger, level: :warning
+
 if config_env() == :dev do
   config :esbuild,
     version: "0.25.0",

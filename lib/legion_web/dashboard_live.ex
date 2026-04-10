@@ -204,11 +204,11 @@ defmodule LegionWeb.DashboardLive do
 
   defp unescape_html(html) do
     html
-    |> String.replace("&amp;", "&")
     |> String.replace("&lt;", "<")
     |> String.replace("&gt;", ">")
     |> String.replace("&quot;", "\"")
     |> String.replace("&#39;", "'")
+    |> String.replace("&amp;", "&")
   end
 
   defp maybe_update_selected_agent(socket, run_id, record) do
