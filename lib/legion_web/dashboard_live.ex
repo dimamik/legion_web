@@ -1,7 +1,7 @@
 defmodule LegionWeb.DashboardLive do
   use LegionWeb, :live_view
 
-  alias LegionWeb.{AgentTracker, HumanHandler}
+  alias LegionWeb.{AgentTracker, HumanHandler, TraceReducer}
   alias LegionWeb.Components.{AgentDetail, AgentsList}
 
   @impl true
@@ -19,7 +19,8 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:agents, AgentTracker.list_agents())
      |> assign(:selected_run_id, nil)
      |> assign(:selected_agent, nil)
-     |> assign(:events, [])
+     |> assign(:trace, TraceReducer.new())
+     |> assign(:trace_items, [])
      |> assign(:system_prompt, nil)
      |> assign(:agent_config, %{})
      |> assign(:show_prompt_modal, false)
@@ -41,7 +42,16 @@ defmodule LegionWeb.DashboardLive do
     end
 
     agent = run_id && AgentTracker.get_agent(run_id)
-    events = if run_id, do: AgentTracker.get_events(run_id), else: []
+
+    trace =
+      if run_id do
+        run_id
+        |> AgentTracker.get_events()
+        |> Enum.reduce(TraceReducer.new(), &TraceReducer.push(&2, &1))
+      else
+        TraceReducer.new()
+      end
+
     system_prompt = agent && render_markdown(agent.agent_module.system_prompt())
 
     agent_config =
@@ -56,7 +66,8 @@ defmodule LegionWeb.DashboardLive do
      socket
      |> assign(:selected_run_id, run_id)
      |> assign(:selected_agent, agent)
-     |> assign(:events, events)
+     |> assign(:trace, trace)
+     |> assign(:trace_items, TraceReducer.items(trace))
      |> assign(:system_prompt, system_prompt)
      |> assign(:agent_config, agent_config)
      |> assign(:chat_form, to_form(%{"text" => ""}, as: :chat))}
@@ -73,7 +84,8 @@ defmodule LegionWeb.DashboardLive do
      socket
      |> assign(:selected_run_id, nil)
      |> assign(:selected_agent, nil)
-     |> assign(:events, [])
+     |> assign(:trace, TraceReducer.new())
+     |> assign(:trace_items, [])
      |> assign(:system_prompt, nil)
      |> assign(:agent_config, %{})}
   end
@@ -94,7 +106,8 @@ defmodule LegionWeb.DashboardLive do
 
   # New event for selected agent
   def handle_info({:new_event, event}, socket) do
-    {:noreply, assign(socket, :events, socket.assigns.events ++ [event])}
+    trace = TraceReducer.push(socket.assigns.trace, event)
+    {:noreply, socket |> assign(:trace, trace) |> assign(:trace_items, TraceReducer.items(trace))}
   end
 
   # Human tool integration
@@ -118,12 +131,6 @@ defmodule LegionWeb.DashboardLive do
           :ok
 
         :not_found ->
-          require Logger
-
-          Logger.warning(
-            "HumanHandler returned :not_found for run_id=#{inspect(agent.run_id)}, falling back to Legion.cast"
-          )
-
           Legion.cast(agent.pid, text)
       end
     end
@@ -152,7 +159,7 @@ defmodule LegionWeb.DashboardLive do
       />
       <AgentDetail.render
         agent={@selected_agent}
-        events={@events}
+        trace_items={@trace_items}
         system_prompt={@system_prompt}
         show_prompt_modal={@show_prompt_modal}
         agent_config={@agent_config}
@@ -179,7 +186,29 @@ defmodule LegionWeb.DashboardLive do
   defp render_markdown(text) do
     text
     |> Earmark.as_html!(code_class_prefix: "language-")
+    |> highlight_code_blocks()
     |> Phoenix.HTML.raw()
+  end
+
+  @code_block_re ~r/<code class="elixir language-elixir">(.*?)<\/code>/s
+  defp highlight_code_blocks(html) do
+    Regex.replace(@code_block_re, html, fn _match, code ->
+      highlighted =
+        code
+        |> unescape_html()
+        |> Makeup.highlight_inner_html(lexer: Makeup.Lexers.ElixirLexer)
+
+      ~s(<code class="language-elixir highlight">#{highlighted}</code>)
+    end)
+  end
+
+  defp unescape_html(html) do
+    html
+    |> String.replace("&lt;", "<")
+    |> String.replace("&gt;", ">")
+    |> String.replace("&quot;", "\"")
+    |> String.replace("&#39;", "'")
+    |> String.replace("&amp;", "&")
   end
 
   defp maybe_update_selected_agent(socket, run_id, record) do
