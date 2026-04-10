@@ -15,8 +15,8 @@ if config_env() == :dev do
       args: ~w(--input=css/app.css --output=../priv/static/app.css),
       cd: Path.expand("../assets", __DIR__)
     ]
+
+  config :logger, level: :info
 end
 
 config :phoenix, :json_library, Jason
-
-config :logger, level: :warning

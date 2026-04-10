@@ -131,12 +131,6 @@ defmodule LegionWeb.DashboardLive do
           :ok
 
         :not_found ->
-          require Logger
-
-          Logger.warning(
-            "HumanHandler returned :not_found for run_id=#{inspect(agent.run_id)}, falling back to Legion.cast"
-          )
-
           Legion.cast(agent.pid, text)
       end
     end

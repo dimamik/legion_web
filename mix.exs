@@ -30,6 +30,10 @@ defmodule LegionWeb.MixProject do
     ]
   end
 
+  def cli do
+    [preferred_envs: [ci: :test]]
+  end
+
   def application do
     [
       extra_applications: [:logger],
@@ -90,7 +94,7 @@ defmodule LegionWeb.MixProject do
         "cmd git push --tags",
         "hex.publish --yes"
       ],
-      "test.ci": [
+      ci: [
         "format --check-formatted",
         "deps.unlock --check-unused",
         "credo --strict",

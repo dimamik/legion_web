@@ -286,6 +286,7 @@ Task.async(fn ->
   ]
 
   {:ok, _} = Supervisor.start_link(children, strategy: :one_for_one)
+  Legion.Telemetry.attach_default_logger()
 
   IO.puts("""
 
