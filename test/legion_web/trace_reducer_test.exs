@@ -97,6 +97,41 @@ defmodule LegionWeb.TraceReducerTest do
     end
   end
 
+  describe "LLM stop error propagation" do
+    test "llm_stop with error populates :error on step" do
+      [item] =
+        items([
+          event(%{
+            type: :llm_stop,
+            data: %{
+              run_id: :main,
+              object: %{},
+              error: %{message: "rate limited"},
+              duration: 10
+            }
+          })
+        ])
+
+      assert {:step, data} = item
+      assert data.error == %{message: "rate limited"}
+      assert data.action == nil
+      assert data.result == nil
+      assert data.eval == nil
+    end
+
+    test "llm_stop without error has :error as nil" do
+      [item] =
+        items([
+          event(%{
+            type: :llm_stop,
+            data: %{run_id: :main, object: %{"action" => "done"}, duration: 50}
+          })
+        ])
+
+      assert {:step, %{error: nil}} = item
+    end
+  end
+
   describe "LLM stop + eval pairing (eval_and_continue)" do
     test "pairs llm_stop with following eval_stop" do
       [item] =
