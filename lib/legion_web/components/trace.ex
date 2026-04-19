@@ -93,7 +93,7 @@ defmodule LegionWeb.Components.Trace do
       <%= if @data.action do %>
         <.render_step_body data={@data} human_question={@human_question} />
       <% else %>
-        <span>(response)</span>
+        <.render_response_only data={@data} />
       <% end %>
       <span :if={@data.duration} class="text-black/50 ml-auto shrink-0">
         {format_duration(@data.duration)}
@@ -139,6 +139,25 @@ defmodule LegionWeb.Components.Trace do
   end
 
   # Step sub-renders
+
+  attr :data, :map, required: true
+
+  defp render_response_only(assigns) do
+    ~H"""
+    <%= cond do %>
+      <% @data.error -> %>
+        <span class="text-sol-red/70 italic">{format_llm_error(@data.error)}</span>
+      <% has_result?(@data.result) -> %>
+        <div class="flex-1 p-3 bg-sol-green/8 border border-sol-green/20 rounded-lg">
+          <div class="text-black prose prose-sm max-w-none">
+            {render_markdown(extract_response(@data.result))}
+          </div>
+        </div>
+      <% true -> %>
+        <span class="text-black/40 italic">(response)</span>
+    <% end %>
+    """
+  end
 
   attr :data, :map, required: true
   attr :human_question, :string, default: nil
@@ -286,6 +305,11 @@ defmodule LegionWeb.Components.Trace do
 
   defp format_exception(reason) when is_exception(reason), do: Exception.message(reason)
   defp format_exception(reason), do: inspect(reason, pretty: true, limit: 50)
+
+  defp format_llm_error(%{message: msg}) when is_binary(msg), do: msg
+  defp format_llm_error(error) when is_exception(error), do: Exception.message(error)
+  defp format_llm_error(error) when is_binary(error), do: error
+  defp format_llm_error(error), do: inspect(error, pretty: true, limit: 50)
 
   defp extract_response(result) when is_map(result) do
     case Map.get(result, "response") do

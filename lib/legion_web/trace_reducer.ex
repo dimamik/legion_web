@@ -189,6 +189,7 @@ defmodule LegionWeb.TraceReducer do
        action: object["action"],
        code: object["code"],
        result: object["result"],
+       error: llm_event.data[:error],
        duration: llm_event.data[:duration],
        eval: eval
      }}

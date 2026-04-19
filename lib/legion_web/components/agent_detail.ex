@@ -90,12 +90,12 @@ defmodule LegionWeb.Components.AgentDetail do
         phx-window-keydown="close_prompt"
         phx-key="Escape"
       >
-        <div class="flex items-center justify-between px-6 py-4 border-b border-sol-base2 shrink-0">
-          <div class="flex items-center gap-3">
+        <div class="flex items-start justify-between gap-3 px-6 py-4 border-b border-sol-base2 shrink-0">
+          <div class="flex items-center gap-3 flex-wrap min-w-0">
             <h3 class="text-sm font-semibold text-sol-base02">System Prompt</h3>
             <span
               :for={{key, val} <- @agent_config}
-              class="text-[10px] px-2 py-0.5 rounded-full bg-sol-base2 text-sol-base00"
+              class="text-[10px] px-2 py-0.5 rounded-full bg-sol-base2 text-sol-base00 whitespace-nowrap"
             >
               {key}: {val}
             </span>
