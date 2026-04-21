@@ -52,8 +52,6 @@ defmodule LegionWeb.DashboardLive do
         TraceReducer.new()
       end
 
-    system_prompt = agent && render_markdown(render_system_prompt(agent.agent_module))
-
     agent_config =
       if agent do
         app_config = Application.get_env(:legion, :config, %{})
@@ -61,6 +59,9 @@ defmodule LegionWeb.DashboardLive do
       else
         %{}
       end
+
+    system_prompt =
+      agent && render_markdown(render_system_prompt(agent.agent_module, agent_config))
 
     {:noreply,
      socket
@@ -183,7 +184,7 @@ defmodule LegionWeb.DashboardLive do
     |> Enum.sort_by(& &1.started_at, :desc)
   end
 
-  defp render_system_prompt(agent_module) do
+  defp render_system_prompt(agent_module, config) do
     # This is a LiveView process, so we can safely
     # put things there.
     # Later on - we should consider global per-tool
@@ -192,7 +193,7 @@ defmodule LegionWeb.DashboardLive do
       Vault.unsafe_put(tool, agent_module.tool_config(tool))
     end
 
-    agent_module.system_prompt()
+    Legion.AgentPrompt.system_prompt(agent_module, config)
   end
 
   defp render_markdown(text) do

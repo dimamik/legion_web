@@ -115,6 +115,10 @@ details summary::marker {
   line-height: 1.3;
 }
 
+.prompt-prose > :first-child {
+  margin-top: 0;
+}
+
 .prompt-prose h1 { font-size: 1.25rem; }
 .prompt-prose h2 { font-size: 1.1rem; border-bottom: 1px solid #eee8d5; padding-bottom: 0.3em; }
 .prompt-prose h3 { font-size: 0.95rem; }

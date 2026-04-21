@@ -107,7 +107,7 @@ defmodule LegionWeb.Components.AgentDetail do
             &times;
           </button>
         </div>
-        <div class="flex-1 overflow-y-auto px-6 py-6">
+        <div class="flex-1 overflow-y-auto px-6 pt-3 pb-6">
           <div class="prompt-prose max-w-3xl">{@system_prompt}</div>
         </div>
       </div>
