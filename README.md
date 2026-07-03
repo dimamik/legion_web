@@ -1,12 +1,12 @@
 # LegionWeb
 
-[![License](https://img.shields.io/hexpm/l/legion_web.svg)](https://github.com/dimamik/legion_web/blob/main/LICENSE)
+[![License](https://img.shields.io/hexpm/l/legion_web.svg)](https://github.com/software-mansion-labs/legion_web/blob/main/LICENSE)
 [![Version](https://img.shields.io/hexpm/v/legion_web.svg)](https://hex.pm/packages/legion_web)
 [![Hex Docs](https://img.shields.io/badge/documentation-gray.svg)](https://hexdocs.pm/legion_web)
 
-![LegionWeb Dashboard](https://raw.githubusercontent.com/dimamik/legion_web/main/img/preview.png)
+![LegionWeb Dashboard](https://raw.githubusercontent.com/software-mansion-labs/legion_web/main/img/preview.png)
 
-Real-time dashboard for [Legion](https://github.com/dimamik/legion) agents. Shows agent lifecycle, LLM requests, code execution, and results as they happen.
+Real-time dashboard for [Legion](https://github.com/software-mansion-labs/legion) agents. Shows agent lifecycle, LLM requests, code execution, and results as they happen.
 
 ## Installation
 
@@ -79,6 +79,16 @@ Requires an LLM API key — create a `.env` file:
 OPENAI_API_KEY=sk-...
 ```
 
+## Authors
+
+LegionWeb is created by Software Mansion.
+
+Since 2012 [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=legion_web) is a software agency with experience in building web and mobile apps as well as complex multimedia solutions. We are Core React Native Contributors, Elixir ecosystem experts, and live streaming and broadcasting technologies specialists. We can help you build your next dream product – [Hire us](https://swmansion.com/contact/projects).
+
+Copyright 2026, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=legion_web)
+
+[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=legion_web-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=legion_web)
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT License - see [LICENSE](LICENSE) for details.
