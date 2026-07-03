@@ -85,7 +85,7 @@ LegionWeb is created by Software Mansion.
 
 Since 2012 [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=legion_web) is a software agency with experience in building web and mobile apps as well as complex multimedia solutions. We are Core React Native Contributors, Elixir ecosystem experts, and live streaming and broadcasting technologies specialists. We can help you build your next dream product – [Hire us](https://swmansion.com/contact/projects).
 
-Copyright 2026, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=legio_web_)
+Copyright 2026, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=legion_web)
 
 [![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=legion_web-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=legion_web)
 
