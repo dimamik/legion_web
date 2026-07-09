@@ -246,14 +246,8 @@ defmodule LegionWeb.AgentTrackerTest do
 
       Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect(:parent)}")
 
-      # Simulate the telemetry handler forwarding - call handle_telemetry directly
-      # which sends both the event for the child and forwards to parent
-      AgentTracker.handle_telemetry(
-        [:legion, :llm, :request, :stop],
-        %{duration: 100},
-        %{run_id: :child, object: %{"action" => "return"}},
-        nil
-      )
+      # Simulate arrival of event which should update the parent:
+      send(AgentTracker, {:forward, :child, :llm_stop, %{}})
 
       # Should receive the forwarded event on parent topic
       assert_receive {:new_event, event}, 1000
