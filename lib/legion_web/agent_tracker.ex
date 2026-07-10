@@ -12,8 +12,6 @@ defmodule LegionWeb.AgentTracker do
 
   use GenServer
 
-  alias LegionWeb.AgentTracker.Source
-
   @agents_table :legion_web_agents
   @events_table :legion_web_events
   @max_agents 100
@@ -54,7 +52,7 @@ defmodule LegionWeb.AgentTracker do
     :ets.new(@agents_table, [:named_table, :public, :set])
     :ets.new(@events_table, [:named_table, :public, :ordered_set])
 
-    {source, opts} = Keyword.pop(opts, :source, Source.Telemetry)
+    {source, opts} = Keyword.pop(opts, :source)
     source.start_link(opts)
 
     {:ok, %{seq: 0, monitors: %{}}}

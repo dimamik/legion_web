@@ -5,9 +5,12 @@ defmodule LegionWeb.Application do
 
   @impl true
   def start(_type, _args) do
+    source =
+      Application.get_env(:legion_web, :source) || LegionWeb.AgentTracker.Source.Telemetry
+
     children = [
       {Phoenix.PubSub, name: LegionWeb.PubSub},
-      LegionWeb.AgentTracker,
+      {LegionWeb.AgentTracker, [{:source, source}]},
       LegionWeb.HumanHandler
     ]
 
