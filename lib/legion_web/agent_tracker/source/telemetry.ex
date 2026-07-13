@@ -4,13 +4,6 @@ defmodule LegionWeb.AgentTracker.Source.Telemetry do
   """
   @behaviour LegionWeb.AgentTracker.Source
 
-  use GenServer
-
-  @impl true
-  def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
-  end
-
   @impl true
   def init(_opts) do
     :telemetry.attach_many(
@@ -31,8 +24,6 @@ defmodule LegionWeb.AgentTracker.Source.Telemetry do
       &__MODULE__.handle_telemetry/4,
       nil
     )
-
-    {:ok, %{}}
   end
 
   def handle_telemetry([:legion, :agent, :started], _measurements, meta, _config) do

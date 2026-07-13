@@ -53,7 +53,7 @@ defmodule LegionWeb.AgentTracker do
     :ets.new(@events_table, [:named_table, :public, :ordered_set])
 
     {source, opts} = Keyword.pop(opts, :source)
-    source.start_link(opts)
+    source.init(opts)
 
     {:ok, %{seq: 0, monitors: %{}}}
   end
