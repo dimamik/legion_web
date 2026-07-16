@@ -3,8 +3,8 @@ defmodule LegionWeb.AgentTracker do
   Tracks Legion agent invocations and their telemetry events.
 
   Maintains two ETS tables:
-  - `:legion_web_agents` — one record per agent run, keyed by run_id
-  - `:legion_web_events` — ordered event log per agent, keyed by {run_id, seq}
+  - `:legion_web_agents` — one record per agent run, keyed by agent_id
+  - `:legion_web_events` — ordered event log per agent, keyed by {agent_id, seq}
 
   Attaches to all Legion telemetry events on startup. Broadcasts changes via
   `LegionWeb.PubSub` so LiveView subscribers receive real-time updates.
@@ -30,16 +30,16 @@ defmodule LegionWeb.AgentTracker do
     |> Enum.sort_by(& &1.started_at, :desc)
   end
 
-  def get_agent(run_id) do
-    case :ets.lookup(@agents_table, run_id) do
-      [{^run_id, record}] -> record
+  def get_agent(agent_id) do
+    case :ets.lookup(@agents_table, agent_id) do
+      [{^agent_id, record}] -> record
       [] -> nil
     end
   end
 
-  def get_events(run_id) do
+  def get_events(agent_id) do
     :ets.select(@events_table, [
-      {{{run_id, :"$1"}, :"$2"}, [], [{{:"$1", :"$2"}}]}
+      {{{agent_id, :"$1"}, :"$2"}, [], [{{:"$1", :"$2"}}]}
     ])
     |> Enum.sort_by(&elem(&1, 0))
     |> Enum.map(&elem(&1, 1))
@@ -59,60 +59,60 @@ defmodule LegionWeb.AgentTracker do
   end
 
   @impl true
-  def handle_info({:agent_started, run_id, record}, state) do
-    :ets.insert(@agents_table, {run_id, record})
+  def handle_info({:agent_started, agent_id, record}, state) do
+    :ets.insert(@agents_table, {agent_id, record})
     evict_if_over_limit()
 
     if pid = record.pid do
       ref = Process.monitor(pid)
-      state = put_in(state.monitors[ref], run_id)
-      broadcast_agent_update(run_id, :started, record)
+      state = put_in(state.monitors[ref], agent_id)
+      broadcast_agent_update(agent_id, :started, record)
       {:noreply, state}
     else
-      broadcast_agent_update(run_id, :started, record)
+      broadcast_agent_update(agent_id, :started, record)
       {:noreply, state}
     end
   end
 
-  def handle_info({:waiting_for_human, run_id}, state) do
-    update_agent(run_id, %{status: :waiting_for_human})
-    broadcast_agent_update(run_id, :waiting, get_agent(run_id))
+  def handle_info({:waiting_for_human, agent_id}, state) do
+    update_agent(agent_id, %{status: :waiting_for_human})
+    broadcast_agent_update(agent_id, :waiting, get_agent(agent_id))
     {:noreply, state}
   end
 
-  def handle_info({:agent_stopped, run_id}, state) do
-    update_agent(run_id, %{status: :done, finished_at: System.system_time(:millisecond)})
-    broadcast_agent_update(run_id, :stopped, get_agent(run_id))
+  def handle_info({:agent_stopped, agent_id}, state) do
+    update_agent(agent_id, %{status: :done, finished_at: System.system_time(:millisecond)})
+    broadcast_agent_update(agent_id, :stopped, get_agent(agent_id))
     {:noreply, state}
   end
 
-  def handle_info({:status_change, run_id, status, extra}, state) do
-    update_agent(run_id, Map.put(extra, :status, status))
-    broadcast_agent_update(run_id, status, get_agent(run_id))
+  def handle_info({:status_change, agent_id, status, extra}, state) do
+    update_agent(agent_id, Map.put(extra, :status, status))
+    broadcast_agent_update(agent_id, status, get_agent(agent_id))
     {:noreply, state}
   end
 
-  def handle_info({:event, run_id, type, data}, state) do
+  def handle_info({:event, agent_id, type, data}, state) do
     seq = state.seq + 1
 
     event = %{
       seq: seq,
-      run_id: run_id,
+      agent_id: agent_id,
       type: type,
       timestamp: System.system_time(:millisecond),
       data: data
     }
 
-    if count_events(run_id) < @max_events_per_agent do
-      :ets.insert(@events_table, {{run_id, seq}, event})
+    if count_events(agent_id) < @max_events_per_agent do
+      :ets.insert(@events_table, {{agent_id, seq}, event})
     end
 
-    broadcast_event(run_id, event)
+    broadcast_event(agent_id, event)
     {:noreply, %{state | seq: seq}}
   end
 
-  def handle_info({:forward, run_id, type, data}, state) do
-    forward_to_parent(run_id, type, data)
+  def handle_info({:forward, agent_id, type, data}, state) do
+    forward_to_parent(agent_id, type, data)
     {:noreply, state}
   end
 
@@ -121,14 +121,15 @@ defmodule LegionWeb.AgentTracker do
       {nil, monitors} ->
         {:noreply, %{state | monitors: monitors}}
 
-      {run_id, monitors} ->
-        case get_agent(run_id) do
+      {agent_id, monitors} ->
+        case get_agent(agent_id) do
           %{status: status} when status in [:done, :error] ->
             :ok
 
           _ ->
-            update_agent(run_id, %{status: :dead, finished_at: System.system_time(:millisecond)})
-            broadcast_agent_update(run_id, :dead, get_agent(run_id))
+            update_agent(agent_id, %{status: :dead, finished_at: System.system_time(:millisecond)})
+
+            broadcast_agent_update(agent_id, :dead, get_agent(agent_id))
         end
 
         {:noreply, %{state | monitors: monitors}}
@@ -139,18 +140,18 @@ defmodule LegionWeb.AgentTracker do
 
   # Private helpers
 
-  defp update_agent(run_id, updates) do
-    case :ets.lookup(@agents_table, run_id) do
-      [{^run_id, record}] ->
-        :ets.insert(@agents_table, {run_id, Map.merge(record, updates)})
+  defp update_agent(agent_id, updates) do
+    case :ets.lookup(@agents_table, agent_id) do
+      [{^agent_id, record}] ->
+        :ets.insert(@agents_table, {agent_id, Map.merge(record, updates)})
 
       [] ->
         :ok
     end
   end
 
-  defp count_events(run_id) do
-    :ets.select_count(@events_table, [{{{run_id, :_}, :_}, [], [true]}])
+  defp count_events(agent_id) do
+    :ets.select_count(@events_table, [{{{agent_id, :_}, :_}, [], [true]}])
   end
 
   defp evict_if_over_limit do
@@ -165,32 +166,32 @@ defmodule LegionWeb.AgentTracker do
       |> List.first()
       |> case do
         nil -> :ok
-        oldest -> delete_agent(oldest.run_id)
+        oldest -> delete_agent(oldest.agent_id)
       end
     end
   end
 
-  defp delete_agent(run_id) do
-    :ets.delete(@agents_table, run_id)
-    :ets.select_delete(@events_table, [{{{run_id, :_}, :_}, [], [true]}])
+  defp delete_agent(agent_id) do
+    :ets.delete(@agents_table, agent_id)
+    :ets.select_delete(@events_table, [{{{agent_id, :_}, :_}, [], [true]}])
   end
 
-  defp broadcast_agent_update(run_id, event, record) do
-    Phoenix.PubSub.broadcast(LegionWeb.PubSub, "legion_web:agents", {event, run_id, record})
+  defp broadcast_agent_update(agent_id, event, record) do
+    Phoenix.PubSub.broadcast(LegionWeb.PubSub, "legion_web:agents", {event, agent_id, record})
   end
 
-  defp broadcast_event(run_id, event) do
+  defp broadcast_event(agent_id, event) do
     Phoenix.PubSub.broadcast(
       LegionWeb.PubSub,
-      "legion_web:agent:#{inspect(run_id)}",
+      "legion_web:agent:#{inspect(agent_id)}",
       {:new_event, event}
     )
   end
 
-  defp forward_to_parent(run_id, type, data) do
-    case :ets.lookup(@agents_table, run_id) do
-      [{^run_id, %{parent_run_id: parent_run_id}}] when not is_nil(parent_run_id) ->
-        send(__MODULE__, {:event, parent_run_id, type, data})
+  defp forward_to_parent(agent_id, type, data) do
+    case :ets.lookup(@agents_table, agent_id) do
+      [{^agent_id, %{parent_agent_id: parent_agent_id}}] when not is_nil(parent_agent_id) ->
+        send(__MODULE__, {:event, parent_agent_id, type, data})
 
       _ ->
         :ok

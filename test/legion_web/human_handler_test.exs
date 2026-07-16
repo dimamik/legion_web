@@ -4,7 +4,7 @@ defmodule LegionWeb.HumanHandlerTest do
   alias LegionWeb.HumanHandler
 
   setup do
-    # Subscribe to PubSub for the test run_id
+    # Subscribe to PubSub for the test agent_id
     Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect(:test_run)}")
 
     # Clear ETS tables used by AgentTracker
@@ -20,7 +20,7 @@ defmodule LegionWeb.HumanHandlerTest do
       from_pid = self()
 
       # Simulate HumanTool sending the request
-      send(HumanHandler, {:human_request, ref, from_pid, "What color?", %{run_id: :test_run}})
+      send(HumanHandler, {:human_request, ref, from_pid, "What color?", %{agent_id: :test_run}})
 
       assert_receive {:human_request, "What color?"}, 1000
 
@@ -34,14 +34,14 @@ defmodule LegionWeb.HumanHandlerTest do
       assert_receive {:human_responded, "blue"}, 1000
     end
 
-    test "respond returns :not_found for unknown run_id" do
+    test "respond returns :not_found for unknown agent_id" do
       assert HumanHandler.respond(:unknown_run, "hello") == :not_found
     end
 
     test "clears pending request after response" do
       ref = make_ref()
 
-      send(HumanHandler, {:human_request, ref, self(), "Q?", %{run_id: :test_run}})
+      send(HumanHandler, {:human_request, ref, self(), "Q?", %{agent_id: :test_run}})
       assert_receive {:human_request, "Q?"}, 1000
 
       assert HumanHandler.respond(:test_run, "A") == :ok
@@ -58,8 +58,8 @@ defmodule LegionWeb.HumanHandlerTest do
       :ets.insert(:legion_web_agents, {
         :test_run,
         %{
-          run_id: :test_run,
-          parent_run_id: nil,
+          agent_id: :test_run,
+          parent_agent_id: nil,
           agent_module: TestAgent,
           pid: self(),
           status: :waiting_for_human,
@@ -72,7 +72,7 @@ defmodule LegionWeb.HumanHandlerTest do
 
       Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agents")
 
-      send(HumanHandler, {:human_request, ref, self(), "Q?", %{run_id: :test_run}})
+      send(HumanHandler, {:human_request, ref, self(), "Q?", %{agent_id: :test_run}})
       assert_receive {:human_request, "Q?"}, 1000
 
       # Drain the :waiting broadcast from AgentTracker

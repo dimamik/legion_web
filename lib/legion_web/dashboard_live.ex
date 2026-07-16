@@ -17,7 +17,7 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:live_transport, session["live_transport"])
      |> assign(:csp_nonces, session["csp_nonces"])
      |> assign(:agents, AgentTracker.list_agents())
-     |> assign(:selected_run_id, nil)
+     |> assign(:selected_agent_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:trace, TraceReducer.new())
      |> assign(:trace_items, [])
@@ -28,24 +28,24 @@ defmodule LegionWeb.DashboardLive do
   end
 
   @impl true
-  def handle_params(%{"run_id" => encoded_run_id}, _uri, socket) do
-    run_id = decode_run_id(encoded_run_id)
+  def handle_params(%{"agent_id" => encoded_agent_id}, _uri, socket) do
+    agent_id = decode_agent_id(encoded_agent_id)
 
     if connected?(socket) do
-      if prev = socket.assigns.selected_run_id do
+      if prev = socket.assigns.selected_agent_id do
         Phoenix.PubSub.unsubscribe(LegionWeb.PubSub, agent_topic(prev))
       end
 
-      if run_id do
-        Phoenix.PubSub.subscribe(LegionWeb.PubSub, agent_topic(run_id))
+      if agent_id do
+        Phoenix.PubSub.subscribe(LegionWeb.PubSub, agent_topic(agent_id))
       end
     end
 
-    agent = run_id && AgentTracker.get_agent(run_id)
+    agent = agent_id && AgentTracker.get_agent(agent_id)
 
     trace =
-      if run_id do
-        run_id
+      if agent_id do
+        agent_id
         |> AgentTracker.get_events()
         |> Enum.reduce(TraceReducer.new(), &TraceReducer.push(&2, &1))
       else
@@ -65,7 +65,7 @@ defmodule LegionWeb.DashboardLive do
 
     {:noreply,
      socket
-     |> assign(:selected_run_id, run_id)
+     |> assign(:selected_agent_id, agent_id)
      |> assign(:selected_agent, agent)
      |> assign(:trace, trace)
      |> assign(:trace_items, TraceReducer.items(trace))
@@ -76,14 +76,14 @@ defmodule LegionWeb.DashboardLive do
 
   def handle_params(_params, _uri, socket) do
     if connected?(socket) do
-      if prev = socket.assigns.selected_run_id do
+      if prev = socket.assigns.selected_agent_id do
         Phoenix.PubSub.unsubscribe(LegionWeb.PubSub, agent_topic(prev))
       end
     end
 
     {:noreply,
      socket
-     |> assign(:selected_run_id, nil)
+     |> assign(:selected_agent_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:trace, TraceReducer.new())
      |> assign(:trace_items, [])
@@ -93,14 +93,14 @@ defmodule LegionWeb.DashboardLive do
 
   # Agent list updates
   @impl true
-  def handle_info({event, run_id, record}, socket)
+  def handle_info({event, agent_id, record}, socket)
       when event in [:started, :stopped, :running, :idle, :done, :error, :waiting, :dead] do
-    agents = update_agents_list(socket.assigns.agents, run_id, record)
+    agents = update_agents_list(socket.assigns.agents, agent_id, record)
 
     socket =
       socket
       |> assign(:agents, agents)
-      |> maybe_update_selected_agent(run_id, record)
+      |> maybe_update_selected_agent(agent_id, record)
 
     {:noreply, socket}
   end
@@ -127,7 +127,7 @@ defmodule LegionWeb.DashboardLive do
     %{selected_agent: agent} = socket.assigns
 
     if agent && agent.pid && Process.alive?(agent.pid) do
-      case HumanHandler.respond(agent.run_id, text) do
+      case HumanHandler.respond(agent.agent_id, text) do
         :ok ->
           :ok
 
@@ -155,7 +155,7 @@ defmodule LegionWeb.DashboardLive do
     <div class="flex h-screen overflow-hidden bg-sol-base3">
       <AgentsList.render
         agents={@agents}
-        selected_run_id={@selected_run_id}
+        selected_agent_id={@selected_agent_id}
         prefix={@prefix}
       />
       <AgentDetail.render
@@ -173,8 +173,8 @@ defmodule LegionWeb.DashboardLive do
 
   # Private helpers
 
-  defp update_agents_list(agents, run_id, record) do
-    idx = Enum.find_index(agents, &(&1.run_id == run_id))
+  defp update_agents_list(agents, agent_id, record) do
+    idx = Enum.find_index(agents, &(&1.agent_id == agent_id))
 
     if idx do
       List.replace_at(agents, idx, record)
@@ -224,8 +224,8 @@ defmodule LegionWeb.DashboardLive do
     |> String.replace("&amp;", "&")
   end
 
-  defp maybe_update_selected_agent(socket, run_id, record) do
-    if socket.assigns.selected_run_id == run_id do
+  defp maybe_update_selected_agent(socket, agent_id, record) do
+    if socket.assigns.selected_agent_id == agent_id do
       assign(socket, :selected_agent, record)
     else
       socket

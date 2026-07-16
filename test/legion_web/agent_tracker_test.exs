@@ -13,12 +13,12 @@ defmodule LegionWeb.AgentTrackerTest do
     :ok
   end
 
-  defp insert_agent(run_id, attrs \\ %{}) do
+  defp insert_agent(agent_id, attrs \\ %{}) do
     record =
       Map.merge(
         %{
-          run_id: run_id,
-          parent_run_id: nil,
+          agent_id: agent_id,
+          parent_agent_id: nil,
           agent_module: TestAgent,
           pid: self(),
           status: :running,
@@ -30,7 +30,7 @@ defmodule LegionWeb.AgentTrackerTest do
         attrs
       )
 
-    :ets.insert(:legion_web_agents, {run_id, record})
+    :ets.insert(:legion_web_agents, {agent_id, record})
     record
   end
 
@@ -45,7 +45,7 @@ defmodule LegionWeb.AgentTrackerTest do
 
       agents = AgentTracker.list_agents()
       assert length(agents) == 2
-      assert hd(agents).run_id == :new
+      assert hd(agents).agent_id == :new
     end
   end
 
@@ -53,7 +53,7 @@ defmodule LegionWeb.AgentTrackerTest do
     test "returns agent record" do
       insert_agent(:run1)
       agent = AgentTracker.get_agent(:run1)
-      assert agent.run_id == :run1
+      assert agent.agent_id == :run1
       assert agent.status == :running
     end
 
@@ -79,7 +79,7 @@ defmodule LegionWeb.AgentTrackerTest do
       assert hd(events).seq == 1
     end
 
-    test "only returns events for the given run_id" do
+    test "only returns events for the given agent_id" do
       :ets.insert(:legion_web_events, {{:run1, 1}, %{seq: 1}})
       :ets.insert(:legion_web_events, {{:run2, 1}, %{seq: 1}})
 
@@ -90,8 +90,8 @@ defmodule LegionWeb.AgentTrackerTest do
   describe "handle_info :agent_started" do
     test "broadcasts agent started" do
       record = %{
-        run_id: :new_agent,
-        parent_run_id: nil,
+        agent_id: :new_agent,
+        parent_agent_id: nil,
         agent_module: TestAgent,
         pid: nil,
         status: :running,
@@ -143,7 +143,7 @@ defmodule LegionWeb.AgentTrackerTest do
 
       assert_receive {:new_event, event}, 1000
       assert event.type == :llm_start
-      assert event.run_id == :evented
+      assert event.agent_id == :evented
       assert event.data.model == "gpt-4"
 
       events = AgentTracker.get_events(:evented)
@@ -168,8 +168,8 @@ defmodule LegionWeb.AgentTrackerTest do
       pid = spawn(fn -> Process.sleep(:infinity) end)
 
       record = %{
-        run_id: :monitored,
-        parent_run_id: nil,
+        agent_id: :monitored,
+        parent_agent_id: nil,
         agent_module: TestAgent,
         pid: pid,
         status: :running,
@@ -197,8 +197,8 @@ defmodule LegionWeb.AgentTrackerTest do
       pid = spawn(fn -> Process.sleep(:infinity) end)
 
       record = %{
-        run_id: :already_done,
-        parent_run_id: nil,
+        agent_id: :already_done,
+        parent_agent_id: nil,
         agent_module: TestAgent,
         pid: pid,
         status: :running,
@@ -242,7 +242,7 @@ defmodule LegionWeb.AgentTrackerTest do
   describe "forward_to_parent" do
     test "forwards events to parent agent topic" do
       insert_agent(:parent)
-      insert_agent(:child, %{parent_run_id: :parent})
+      insert_agent(:child, %{parent_agent_id: :parent})
 
       Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect(:parent)}")
 

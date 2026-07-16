@@ -28,8 +28,8 @@ defmodule LegionWeb.AgentTracker.Source.Telemetry do
 
   def handle_telemetry([:legion, :agent, :started], _measurements, meta, _config) do
     record = %{
-      run_id: meta.run_id,
-      parent_run_id: meta[:parent_run_id],
+      agent_id: meta.agent_id,
+      parent_agent_id: meta[:parent_agent_id],
       agent_module: meta.agent,
       pid: self(),
       status: :running,
@@ -39,82 +39,83 @@ defmodule LegionWeb.AgentTracker.Source.Telemetry do
       iterations: 0
     }
 
-    send(LegionWeb.AgentTracker, {:agent_started, meta.run_id, record})
+    send(LegionWeb.AgentTracker, {:agent_started, meta.agent_id, record})
   end
 
   def handle_telemetry([:legion, :agent, :stopped], _measurements, meta, _config) do
-    send(LegionWeb.AgentTracker, {:agent_stopped, meta.run_id})
+    send(LegionWeb.AgentTracker, {:agent_stopped, meta.agent_id})
   end
 
   def handle_telemetry([:legion, :agent, :message, :start], _measurements, meta, _config) do
     task = if is_binary(meta[:message]), do: meta[:message]
     updates = if task, do: %{task: task}, else: %{}
-    send(LegionWeb.AgentTracker, {:status_change, meta.run_id, :running, updates})
-    send(LegionWeb.AgentTracker, {:event, meta.run_id, :message_start, meta})
+    send(LegionWeb.AgentTracker, {:status_change, meta.agent_id, :running, updates})
+    send(LegionWeb.AgentTracker, {:event, meta.agent_id, :message_start, meta})
   end
 
   def handle_telemetry([:legion, :agent, :message, :stop], measurements, meta, _config) do
     send(
       LegionWeb.AgentTracker,
-      {:status_change, meta.run_id, :idle, %{iterations: meta[:iterations] || 0}}
+      {:status_change, meta.agent_id, :idle, %{iterations: meta[:iterations] || 0}}
     )
 
     send(
       LegionWeb.AgentTracker,
-      {:event, meta.run_id, :message_stop, Map.merge(meta, %{duration: measurements[:duration]})}
+      {:event, meta.agent_id, :message_stop,
+       Map.merge(meta, %{duration: measurements[:duration]})}
     )
   end
 
   def handle_telemetry([:legion, :agent, :message, :exception], measurements, meta, _config) do
-    send(LegionWeb.AgentTracker, {:status_change, meta.run_id, :error, %{}})
+    send(LegionWeb.AgentTracker, {:status_change, meta.agent_id, :error, %{}})
 
     send(
       LegionWeb.AgentTracker,
-      {:event, meta.run_id, :message_exception,
+      {:event, meta.agent_id, :message_exception,
        Map.merge(meta, %{duration: measurements[:duration]})}
     )
   end
 
   def handle_telemetry([:legion, :iteration, :start], _measurements, meta, _config) do
-    send(LegionWeb.AgentTracker, {:event, meta.run_id, :iteration_start, meta})
-    send(LegionWeb.AgentTracker, {:forward, meta.run_id, :iteration_start, meta})
+    send(LegionWeb.AgentTracker, {:event, meta.agent_id, :iteration_start, meta})
+    send(LegionWeb.AgentTracker, {:forward, meta.agent_id, :iteration_start, meta})
   end
 
   def handle_telemetry([:legion, :iteration, :stop], measurements, meta, _config) do
     send(
       LegionWeb.AgentTracker,
-      {:event, meta.run_id, :iteration_stop,
+      {:event, meta.agent_id, :iteration_stop,
        Map.merge(meta, %{duration: measurements[:duration]})}
     )
 
-    send(LegionWeb.AgentTracker, {:forward, meta.run_id, :iteration_stop, meta})
+    send(LegionWeb.AgentTracker, {:forward, meta.agent_id, :iteration_stop, meta})
   end
 
   def handle_telemetry([:legion, :llm, :request, :start], _measurements, meta, _config) do
-    send(LegionWeb.AgentTracker, {:event, meta.run_id, :llm_start, meta})
-    send(LegionWeb.AgentTracker, {:forward, meta.run_id, :llm_start, meta})
+    send(LegionWeb.AgentTracker, {:event, meta.agent_id, :llm_start, meta})
+    send(LegionWeb.AgentTracker, {:forward, meta.agent_id, :llm_start, meta})
   end
 
   def handle_telemetry([:legion, :llm, :request, :stop], measurements, meta, _config) do
     send(
       LegionWeb.AgentTracker,
-      {:event, meta.run_id, :llm_stop, Map.merge(meta, %{duration: measurements[:duration]})}
+      {:event, meta.agent_id, :llm_stop, Map.merge(meta, %{duration: measurements[:duration]})}
     )
 
-    send(LegionWeb.AgentTracker, {:forward, meta.run_id, :llm_stop, meta})
+    send(LegionWeb.AgentTracker, {:forward, meta.agent_id, :llm_stop, meta})
   end
 
   def handle_telemetry([:legion, :sandbox, :eval, :start], _measurements, meta, _config) do
-    send(LegionWeb.AgentTracker, {:event, meta.run_id, :eval_start, meta})
-    send(LegionWeb.AgentTracker, {:forward, meta.run_id, :eval_start, meta})
+    send(LegionWeb.AgentTracker, {:event, meta.agent_id, :eval_start, meta})
+    send(LegionWeb.AgentTracker, {:forward, meta.agent_id, :eval_start, meta})
   end
 
   def handle_telemetry([:legion, :sandbox, :eval, :stop], measurements, meta, _config) do
     send(
       LegionWeb.AgentTracker,
-      {:event, meta.run_id, :eval_stop, Map.merge(meta, %{duration: measurements[:duration]})}
+      {:event, meta.agent_id, :eval_stop, Map.merge(meta, %{duration: measurements[:duration]})}
     )
 
-    send(LegionWeb.AgentTracker, {:forward, meta.run_id, :eval_stop, meta})
+    send(LegionWeb.AgentTracker, {:forward, meta.agent_id, :eval_stop, meta})
   end
 end

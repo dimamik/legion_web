@@ -28,7 +28,7 @@ defmodule LegionWeb.Components.AgentDetail do
   end
 
   def render(assigns) do
-    is_subagent = assigns.agent.parent_run_id != nil
+    is_subagent = assigns.agent.parent_agent_id != nil
     assigns = assign(assigns, :is_subagent, is_subagent)
 
     ~H"""
@@ -37,7 +37,7 @@ defmodule LegionWeb.Components.AgentDetail do
       <div class="px-6 py-4 border-b border-sol-base2 shrink-0 bg-sol-base2/50">
         <div :if={@is_subagent} class="flex items-center gap-1.5 mb-2">
           <.link
-            patch={"#{@prefix}/#{Helpers.encode_run_id(@agent.parent_run_id)}"}
+            patch={"#{@prefix}/#{Helpers.encode_agent_id(@agent.parent_agent_id)}"}
             class="text-xs text-sol-violet hover:text-sol-violet/80 transition-colors"
           >
             &larr; parent agent
