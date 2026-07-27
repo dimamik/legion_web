@@ -5,7 +5,7 @@ defmodule LegionWeb.HumanHandlerTest do
 
   setup do
     # Subscribe to PubSub for the test agent_id
-    Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect(:test_run)}")
+    Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect(:test_agent)}")
 
     # Clear ETS tables used by AgentTracker
     :ets.delete_all_objects(:legion_web_agents)
@@ -20,12 +20,12 @@ defmodule LegionWeb.HumanHandlerTest do
       from_pid = self()
 
       # Simulate HumanTool sending the request
-      send(HumanHandler, {:human_request, ref, from_pid, "What color?", %{agent_id: :test_run}})
+      send(HumanHandler, {:human_request, ref, from_pid, "What color?", %{agent_id: :test_agent}})
 
       assert_receive {:human_request, "What color?"}, 1000
 
       # Respond via the handler
-      assert HumanHandler.respond(:test_run, "blue") == :ok
+      assert HumanHandler.respond(:test_agent, "blue") == :ok
 
       # The response should be sent back to the original process
       assert_receive {:human_response, ^ref, "blue"}, 1000
@@ -35,53 +35,53 @@ defmodule LegionWeb.HumanHandlerTest do
     end
 
     test "respond returns :not_found for unknown agent_id" do
-      assert HumanHandler.respond(:unknown_run, "hello") == :not_found
+      assert HumanHandler.respond(:unknown_agent, "hello") == :not_found
     end
 
     test "clears pending request after response" do
       ref = make_ref()
 
-      send(HumanHandler, {:human_request, ref, self(), "Q?", %{agent_id: :test_run}})
+      send(HumanHandler, {:human_request, ref, self(), "Q?", %{agent_id: :test_agent}})
       assert_receive {:human_request, "Q?"}, 1000
 
-      assert HumanHandler.respond(:test_run, "A") == :ok
+      assert HumanHandler.respond(:test_agent, "A") == :ok
       assert_receive {:human_response, ^ref, "A"}, 1000
 
       # Second respond should be :not_found
-      assert HumanHandler.respond(:test_run, "again") == :not_found
+      assert HumanHandler.respond(:test_agent, "again") == :not_found
     end
 
-    test "sends status_change and event to AgentTracker on response" do
+    test "emits human activity through telemetry" do
       ref = make_ref()
+      handler_id = {__MODULE__, self(), make_ref()}
 
-      # Insert a test agent so AgentTracker can update it
-      :ets.insert(:legion_web_agents, {
-        :test_run,
-        %{
-          agent_id: :test_run,
-          parent_agent_id: nil,
-          agent_module: TestAgent,
-          pid: self(),
-          status: :waiting_for_human,
-          started_at: 1000,
-          finished_at: nil,
-          task: nil,
-          iterations: 0
-        }
-      })
+      :ok =
+        :telemetry.attach_many(
+          handler_id,
+          [
+            [:legion_web, :agent, :waiting_for_human],
+            [:legion_web, :agent, :human_response]
+          ],
+          fn event, measurements, metadata, test_pid ->
+            send(test_pid, {:human_activity, event, measurements, metadata})
+          end,
+          self()
+        )
 
-      Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agents")
+      on_exit(fn -> :telemetry.detach(handler_id) end)
 
-      send(HumanHandler, {:human_request, ref, self(), "Q?", %{agent_id: :test_run}})
+      send(HumanHandler, {:human_request, ref, self(), "Q?", %{agent_id: :test_agent}})
       assert_receive {:human_request, "Q?"}, 1000
 
-      # Drain the :waiting broadcast from AgentTracker
-      assert_receive {:waiting, :test_run, _}, 1000
+      assert_receive {:human_activity, [:legion_web, :agent, :waiting_for_human], %{},
+                      %{agent_id: :test_agent}},
+                     1000
 
-      HumanHandler.respond(:test_run, "answer")
+      HumanHandler.respond(:test_agent, "answer")
 
-      # AgentTracker should receive and process the status_change to :running
-      assert_receive {:running, :test_run, _record}, 1000
+      assert_receive {:human_activity, [:legion_web, :agent, :human_response], %{},
+                      %{agent_id: :test_agent, text: "answer"}},
+                     1000
     end
   end
 

@@ -2,6 +2,7 @@ defmodule LegionWeb.AgentTrackerTest do
   use ExUnit.Case
 
   alias LegionWeb.AgentTracker
+  alias LegionWeb.AgentTracker.Telemetry
 
   setup do
     # Clear ETS tables before each test
@@ -11,6 +12,11 @@ defmodule LegionWeb.AgentTrackerTest do
     Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agents")
 
     :ok
+  end
+
+  test "defines the tracker query behaviour" do
+    assert AgentTracker.behaviour_info(:callbacks) |> Enum.sort() ==
+             [get_agent: 1, get_events: 1, list_agents: 0]
   end
 
   defp insert_agent(agent_id, attrs \\ %{}) do
@@ -36,14 +42,14 @@ defmodule LegionWeb.AgentTrackerTest do
 
   describe "list_agents/0" do
     test "returns empty list when no agents" do
-      assert AgentTracker.list_agents() == []
+      assert Telemetry.list_agents() == []
     end
 
     test "returns agents sorted by started_at desc" do
       insert_agent(:old, %{started_at: 1000})
       insert_agent(:new, %{started_at: 2000})
 
-      agents = AgentTracker.list_agents()
+      agents = Telemetry.list_agents()
       assert length(agents) == 2
       assert hd(agents).agent_id == :new
     end
@@ -51,39 +57,39 @@ defmodule LegionWeb.AgentTrackerTest do
 
   describe "get_agent/1" do
     test "returns agent record" do
-      insert_agent(:run1)
-      agent = AgentTracker.get_agent(:run1)
-      assert agent.agent_id == :run1
+      insert_agent(:agent1)
+      agent = Telemetry.get_agent(:agent1)
+      assert agent.agent_id == :agent1
       assert agent.status == :running
     end
 
     test "returns nil for missing agent" do
-      assert AgentTracker.get_agent(:nonexistent) == nil
+      assert Telemetry.get_agent(:nonexistent) == nil
     end
   end
 
   describe "get_events/1" do
     test "returns empty list when no events" do
-      assert AgentTracker.get_events(:no_events) == []
+      assert Telemetry.get_events(:no_events) == []
     end
 
     test "returns events in order" do
       e1 = %{seq: 1, type: :llm_start, data: %{}}
       e2 = %{seq: 2, type: :llm_stop, data: %{}}
 
-      :ets.insert(:legion_web_events, {{:run1, 1}, e1})
-      :ets.insert(:legion_web_events, {{:run1, 2}, e2})
+      :ets.insert(:legion_web_events, {{:agent1, 1}, e1})
+      :ets.insert(:legion_web_events, {{:agent1, 2}, e2})
 
-      events = AgentTracker.get_events(:run1)
+      events = Telemetry.get_events(:agent1)
       assert length(events) == 2
       assert hd(events).seq == 1
     end
 
     test "only returns events for the given agent_id" do
-      :ets.insert(:legion_web_events, {{:run1, 1}, %{seq: 1}})
-      :ets.insert(:legion_web_events, {{:run2, 1}, %{seq: 1}})
+      :ets.insert(:legion_web_events, {{:agent1, 1}, %{seq: 1}})
+      :ets.insert(:legion_web_events, {{:agent2, 1}, %{seq: 1}})
 
-      assert length(AgentTracker.get_events(:run1)) == 1
+      assert length(Telemetry.get_events(:agent1)) == 1
     end
   end
 
@@ -103,7 +109,7 @@ defmodule LegionWeb.AgentTrackerTest do
 
       :ets.insert(:legion_web_agents, {:new_agent, record})
 
-      send(AgentTracker, {:agent_started, :new_agent, record})
+      send(Telemetry, {:agent_started, :new_agent, record})
 
       assert_receive {:started, :new_agent, ^record}, 1000
     end
@@ -113,7 +119,7 @@ defmodule LegionWeb.AgentTrackerTest do
     test "updates agent status to done and broadcasts" do
       insert_agent(:stopping)
 
-      send(AgentTracker, {:agent_stopped, :stopping})
+      send(Telemetry, {:agent_stopped, :stopping})
 
       assert_receive {:stopped, :stopping, record}, 1000
       assert record.status == :done
@@ -125,7 +131,7 @@ defmodule LegionWeb.AgentTrackerTest do
     test "updates agent status and broadcasts" do
       insert_agent(:changing)
 
-      send(AgentTracker, {:status_change, :changing, :idle, %{iterations: 3}})
+      send(Telemetry, {:status_change, :changing, :idle, %{iterations: 3}})
 
       assert_receive {:idle, :changing, record}, 1000
       assert record.status == :idle
@@ -139,14 +145,14 @@ defmodule LegionWeb.AgentTrackerTest do
 
       Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect(:evented)}")
 
-      send(AgentTracker, {:event, :evented, :llm_start, %{model: "gpt-4"}})
+      send(Telemetry, {:event, :evented, :llm_start, %{model: "gpt-4"}})
 
       assert_receive {:new_event, event}, 1000
       assert event.type == :llm_start
       assert event.agent_id == :evented
       assert event.data.model == "gpt-4"
 
-      events = AgentTracker.get_events(:evented)
+      events = Telemetry.get_events(:evented)
       assert length(events) == 1
     end
   end
@@ -155,7 +161,7 @@ defmodule LegionWeb.AgentTrackerTest do
     test "updates status and broadcasts" do
       insert_agent(:waiting)
 
-      send(AgentTracker, {:waiting_for_human, :waiting})
+      send(Telemetry, {:waiting_for_human, :waiting})
 
       assert_receive {:waiting, :waiting, record}, 1000
       assert record.status == :waiting_for_human
@@ -180,7 +186,7 @@ defmodule LegionWeb.AgentTrackerTest do
       }
 
       :ets.insert(:legion_web_agents, {:monitored, record})
-      send(AgentTracker, {:agent_started, :monitored, record})
+      send(Telemetry, {:agent_started, :monitored, record})
 
       # Wait for the monitor to be set up
       assert_receive {:started, :monitored, _}, 1000
@@ -209,7 +215,7 @@ defmodule LegionWeb.AgentTrackerTest do
       }
 
       :ets.insert(:legion_web_agents, {:already_done, record})
-      send(AgentTracker, {:agent_started, :already_done, record})
+      send(Telemetry, {:agent_started, :already_done, record})
       assert_receive {:started, :already_done, _}, 1000
 
       # Mark as done before killing
@@ -232,10 +238,10 @@ defmodule LegionWeb.AgentTrackerTest do
 
       # Send one more event - it should still broadcast but not store
       Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect(:limited)}")
-      send(AgentTracker, {:event, :limited, :llm_start, %{}})
+      send(Telemetry, {:event, :limited, :llm_start, %{}})
 
       assert_receive {:new_event, _}, 1000
-      assert length(AgentTracker.get_events(:limited)) == 500
+      assert length(Telemetry.get_events(:limited)) == 500
     end
   end
 
@@ -246,12 +252,41 @@ defmodule LegionWeb.AgentTrackerTest do
 
       Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect(:parent)}")
 
-      # Simulate arrival of event which should update the parent:
-      send(AgentTracker, {:forward, :child, :llm_stop, %{}})
+      Telemetry.handle_telemetry(
+        [:legion, :llm, :request, :stop],
+        %{duration: 100},
+        %{agent_id: :child, object: %{"action" => "return"}},
+        nil
+      )
 
       # Should receive the forwarded event on parent topic
       assert_receive {:new_event, event}, 1000
       assert event.type == :llm_stop
+    end
+  end
+
+  describe "human activity telemetry" do
+    test "marks an agent waiting and running around a human response" do
+      insert_agent(:waiting)
+
+      Telemetry.handle_telemetry(
+        [:legion_web, :agent, :waiting_for_human],
+        %{},
+        %{agent_id: :waiting},
+        nil
+      )
+
+      assert_receive {:waiting, :waiting, %{status: :waiting_for_human}}, 1000
+
+      Telemetry.handle_telemetry(
+        [:legion_web, :agent, :human_response],
+        %{},
+        %{agent_id: :waiting, text: "answer"},
+        nil
+      )
+
+      assert_receive {:running, :waiting, %{status: :running}}, 1000
+      assert [%{type: :human_response, data: %{text: "answer"}}] = Telemetry.get_events(:waiting)
     end
   end
 end

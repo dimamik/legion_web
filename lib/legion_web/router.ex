@@ -107,6 +107,7 @@ defmodule LegionWeb.Router do
     csp_keys = expand_csp_nonce_keys(csp_key)
 
     %{
+      "agent_tracker" => LegionWeb.Application.agent_tracker(),
       "prefix" => prefix,
       "live_path" => live_path,
       "live_transport" => live_transport,

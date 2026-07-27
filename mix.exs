@@ -59,7 +59,7 @@ defmodule LegionWeb.MixProject do
 
   defp deps do
     [
-      {:legion, "~> 0.3"},
+      {:legion, path: "../legion"},
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 1.0"},
@@ -78,6 +78,8 @@ defmodule LegionWeb.MixProject do
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
+      {:ecto_sql, "~> 3.13", only: [:dev, :test]},
+      {:ecto_psql_extras, "~> 0.8", only: [:dev, :test]},
 
       # Test
       {:floki, "~> 0.33", only: [:dev, :test]}

@@ -1,200 +1,26 @@
 defmodule LegionWeb.AgentTracker do
   @moduledoc """
-  Tracks Legion agent invocations and their telemetry events.
+  Query interface for a Legion agent activity tracker.
 
-  Maintains two ETS tables:
-  - `:legion_web_agents` — one record per agent run, keyed by agent_id
-  - `:legion_web_events` — ordered event log per agent, keyed by {agent_id, seq}
+  An AgentTracker implementation provides the dashboard's read model for
+  agents and their events. It may be backed by telemetry, a database listener,
+  or another source entirely; this behavior deliberately does not prescribe a
+  process model, storage mechanism, or ingestion strategy.
 
-  Attaches to all Legion telemetry events on startup. Broadcasts changes via
-  `LegionWeb.PubSub` so LiveView subscribers receive real-time updates.
+  `LegionWeb.Application` supervises the configured implementation. Consumers
+  receive the selected tracker module and call this interface directly.
   """
 
-  use GenServer
+  @type agent_id :: term()
+  @type agent :: map()
+  @type event :: map()
 
-  @agents_table :legion_web_agents
-  @events_table :legion_web_events
-  @max_agents 100
-  @max_events_per_agent 500
+  @doc "Lists tracked agents, ordered from most recently started to oldest."
+  @callback list_agents() :: [agent()]
 
-  # Public API
+  @doc "Returns the tracked agent with the given ID, or `nil` when it is absent."
+  @callback get_agent(agent_id()) :: agent() | nil
 
-  def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
-  end
-
-  def list_agents do
-    @agents_table
-    |> :ets.tab2list()
-    |> Enum.map(&elem(&1, 1))
-    |> Enum.sort_by(& &1.started_at, :desc)
-  end
-
-  def get_agent(agent_id) do
-    case :ets.lookup(@agents_table, agent_id) do
-      [{^agent_id, record}] -> record
-      [] -> nil
-    end
-  end
-
-  def get_events(agent_id) do
-    :ets.select(@events_table, [
-      {{{agent_id, :"$1"}, :"$2"}, [], [{{:"$1", :"$2"}}]}
-    ])
-    |> Enum.sort_by(&elem(&1, 0))
-    |> Enum.map(&elem(&1, 1))
-  end
-
-  # GenServer callbacks
-
-  @impl true
-  def init(opts) do
-    :ets.new(@agents_table, [:named_table, :public, :set])
-    :ets.new(@events_table, [:named_table, :public, :ordered_set])
-
-    {source, opts} = Keyword.pop(opts, :source)
-    source.init(opts)
-
-    {:ok, %{seq: 0, monitors: %{}}}
-  end
-
-  @impl true
-  def handle_info({:agent_started, agent_id, record}, state) do
-    :ets.insert(@agents_table, {agent_id, record})
-    evict_if_over_limit()
-
-    if pid = record.pid do
-      ref = Process.monitor(pid)
-      state = put_in(state.monitors[ref], agent_id)
-      broadcast_agent_update(agent_id, :started, record)
-      {:noreply, state}
-    else
-      broadcast_agent_update(agent_id, :started, record)
-      {:noreply, state}
-    end
-  end
-
-  def handle_info({:waiting_for_human, agent_id}, state) do
-    update_agent(agent_id, %{status: :waiting_for_human})
-    broadcast_agent_update(agent_id, :waiting, get_agent(agent_id))
-    {:noreply, state}
-  end
-
-  def handle_info({:agent_stopped, agent_id}, state) do
-    update_agent(agent_id, %{status: :done, finished_at: System.system_time(:millisecond)})
-    broadcast_agent_update(agent_id, :stopped, get_agent(agent_id))
-    {:noreply, state}
-  end
-
-  def handle_info({:status_change, agent_id, status, extra}, state) do
-    update_agent(agent_id, Map.put(extra, :status, status))
-    broadcast_agent_update(agent_id, status, get_agent(agent_id))
-    {:noreply, state}
-  end
-
-  def handle_info({:event, agent_id, type, data}, state) do
-    seq = state.seq + 1
-
-    event = %{
-      seq: seq,
-      agent_id: agent_id,
-      type: type,
-      timestamp: System.system_time(:millisecond),
-      data: data
-    }
-
-    if count_events(agent_id) < @max_events_per_agent do
-      :ets.insert(@events_table, {{agent_id, seq}, event})
-    end
-
-    broadcast_event(agent_id, event)
-    {:noreply, %{state | seq: seq}}
-  end
-
-  def handle_info({:forward, agent_id, type, data}, state) do
-    forward_to_parent(agent_id, type, data)
-    {:noreply, state}
-  end
-
-  def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
-    case Map.pop(state.monitors, ref) do
-      {nil, monitors} ->
-        {:noreply, %{state | monitors: monitors}}
-
-      {agent_id, monitors} ->
-        case get_agent(agent_id) do
-          %{status: status} when status in [:done, :error] ->
-            :ok
-
-          _ ->
-            update_agent(agent_id, %{status: :dead, finished_at: System.system_time(:millisecond)})
-
-            broadcast_agent_update(agent_id, :dead, get_agent(agent_id))
-        end
-
-        {:noreply, %{state | monitors: monitors}}
-    end
-  end
-
-  def handle_info(_msg, state), do: {:noreply, state}
-
-  # Private helpers
-
-  defp update_agent(agent_id, updates) do
-    case :ets.lookup(@agents_table, agent_id) do
-      [{^agent_id, record}] ->
-        :ets.insert(@agents_table, {agent_id, Map.merge(record, updates)})
-
-      [] ->
-        :ok
-    end
-  end
-
-  defp count_events(agent_id) do
-    :ets.select_count(@events_table, [{{{agent_id, :_}, :_}, [], [true]}])
-  end
-
-  defp evict_if_over_limit do
-    count = :ets.info(@agents_table, :size)
-
-    if count > @max_agents do
-      @agents_table
-      |> :ets.tab2list()
-      |> Enum.map(&elem(&1, 1))
-      |> Enum.filter(&(&1.status not in [:running, :waiting_for_human]))
-      |> Enum.sort_by(& &1.started_at)
-      |> List.first()
-      |> case do
-        nil -> :ok
-        oldest -> delete_agent(oldest.agent_id)
-      end
-    end
-  end
-
-  defp delete_agent(agent_id) do
-    :ets.delete(@agents_table, agent_id)
-    :ets.select_delete(@events_table, [{{{agent_id, :_}, :_}, [], [true]}])
-  end
-
-  defp broadcast_agent_update(agent_id, event, record) do
-    Phoenix.PubSub.broadcast(LegionWeb.PubSub, "legion_web:agents", {event, agent_id, record})
-  end
-
-  defp broadcast_event(agent_id, event) do
-    Phoenix.PubSub.broadcast(
-      LegionWeb.PubSub,
-      "legion_web:agent:#{inspect(agent_id)}",
-      {:new_event, event}
-    )
-  end
-
-  defp forward_to_parent(agent_id, type, data) do
-    case :ets.lookup(@agents_table, agent_id) do
-      [{^agent_id, %{parent_agent_id: parent_agent_id}}] when not is_nil(parent_agent_id) ->
-        send(__MODULE__, {:event, parent_agent_id, type, data})
-
-      _ ->
-        :ok
-    end
-  end
+  @doc "Returns an agent's events in chronological order."
+  @callback get_events(agent_id()) :: [event()]
 end

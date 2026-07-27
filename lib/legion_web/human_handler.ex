@@ -34,7 +34,11 @@ defmodule LegionWeb.HumanHandler do
 
     state = put_in(state.pending[agent_id], {ref, from_pid})
 
-    send(LegionWeb.AgentTracker, {:waiting_for_human, agent_id})
+    :telemetry.execute(
+      [:legion_web, :agent, :waiting_for_human],
+      %{},
+      %{agent_id: agent_id}
+    )
 
     Phoenix.PubSub.broadcast(
       LegionWeb.PubSub,
@@ -55,8 +59,12 @@ defmodule LegionWeb.HumanHandler do
 
       {{ref, from_pid}, pending} ->
         send(from_pid, {:human_response, ref, text})
-        send(LegionWeb.AgentTracker, {:event, agent_id, :human_response, %{text: text}})
-        send(LegionWeb.AgentTracker, {:status_change, agent_id, :running, %{}})
+
+        :telemetry.execute(
+          [:legion_web, :agent, :human_response],
+          %{},
+          %{agent_id: agent_id, text: text}
+        )
 
         Phoenix.PubSub.broadcast(
           LegionWeb.PubSub,

@@ -48,6 +48,7 @@ defmodule LegionWeb.RouterTest do
       assert session["prefix"] == "/legion"
       assert session["live_path"] == "/live"
       assert session["live_transport"] == "websocket"
+      assert session["agent_tracker"] == LegionWeb.Application.agent_tracker()
       assert session["csp_nonces"] == %{img: nil, style: nil, script: nil}
     end
 

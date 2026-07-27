@@ -1,11 +1,13 @@
 defmodule LegionWeb.DashboardLive do
   use LegionWeb, :live_view
 
-  alias LegionWeb.{AgentTracker, HumanHandler, TraceReducer}
+  alias LegionWeb.{HumanHandler, TraceReducer}
   alias LegionWeb.Components.{AgentDetail, AgentsList}
 
   @impl true
   def mount(_params, session, socket) do
+    agent_tracker = session["agent_tracker"]
+
     if connected?(socket) do
       Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agents")
     end
@@ -16,7 +18,8 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:live_path, session["live_path"])
      |> assign(:live_transport, session["live_transport"])
      |> assign(:csp_nonces, session["csp_nonces"])
-     |> assign(:agents, AgentTracker.list_agents())
+     |> assign(:agent_tracker, agent_tracker)
+     |> assign(:agents, agent_tracker.list_agents())
      |> assign(:selected_agent_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:trace, TraceReducer.new())
@@ -41,12 +44,13 @@ defmodule LegionWeb.DashboardLive do
       end
     end
 
-    agent = agent_id && AgentTracker.get_agent(agent_id)
+    agent_tracker = socket.assigns.agent_tracker
+    agent = agent_id && agent_tracker.get_agent(agent_id)
 
     trace =
       if agent_id do
         agent_id
-        |> AgentTracker.get_events()
+        |> agent_tracker.get_events()
         |> Enum.reduce(TraceReducer.new(), &TraceReducer.push(&2, &1))
       else
         TraceReducer.new()

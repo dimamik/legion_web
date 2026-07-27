@@ -176,7 +176,7 @@ defmodule LegionWeb.HelpersTest do
 
   describe "encode_agent_id/1 and decode_agent_id/1" do
     test "roundtrip with atom" do
-      agent_id = :some_run
+      agent_id = :some_agent
       encoded = Helpers.encode_agent_id(agent_id)
       assert is_binary(encoded)
       assert Helpers.decode_agent_id(encoded) == agent_id
@@ -189,7 +189,7 @@ defmodule LegionWeb.HelpersTest do
     end
 
     test "roundtrip with tuple" do
-      agent_id = {:run, 123}
+      agent_id = {:agent, 123}
       encoded = Helpers.encode_agent_id(agent_id)
       assert Helpers.decode_agent_id(encoded) == agent_id
     end
@@ -205,7 +205,7 @@ defmodule LegionWeb.HelpersTest do
 
   describe "agent_topic/1" do
     test "builds topic string" do
-      assert Helpers.agent_topic(:my_run) == "legion_web:agent::my_run"
+      assert Helpers.agent_topic(:my_agent) == "legion_web:agent::my_agent"
     end
 
     test "handles reference agent_id" do

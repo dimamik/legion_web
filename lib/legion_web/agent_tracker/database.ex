@@ -1,0 +1,202 @@
+defmodule LegionWeb.AgentTracker.Database do
+  @moduledoc false
+
+  use GenServer
+
+  @behaviour LegionWeb.AgentTracker
+
+  @max_agents 100
+
+  # Postgrex arrives through the host app's repo; legion_web itself does not
+  # depend on it.
+  @compile {:no_warn_undefined, Postgrex.Notifications}
+
+  def start_link(opts \\ []) do
+    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+  end
+
+  @impl true
+  def init(opts) do
+    store = Keyword.fetch!(opts, :store)
+    validate_store!(store)
+
+    notifications_module = Keyword.get(opts, :notifications, Postgrex.Notifications)
+
+    {:ok, notifications} =
+      notifications_module.start_link(store.__repo__().config() ++ [auto_reconnect: true])
+
+    {:ok, _ref} = notifications_module.listen(notifications, store.__table__())
+
+    {:ok, %{store: store, notifications: notifications, event_cursors: %{}}}
+  end
+
+  @impl LegionWeb.AgentTracker
+  def list_agents do
+    GenServer.call(__MODULE__, :list_agents)
+  end
+
+  @impl LegionWeb.AgentTracker
+  def get_agent(agent_id) do
+    GenServer.call(__MODULE__, {:get_agent, agent_id})
+  end
+
+  @impl LegionWeb.AgentTracker
+  def get_events(agent_id) do
+    GenServer.call(__MODULE__, {:get_events, agent_id})
+  end
+
+  @impl true
+  def handle_call(:list_agents, _from, state) do
+    agents = state.store.list(@max_agents) |> Enum.map(&to_record/1)
+    {:reply, agents, state}
+  end
+
+  def handle_call({:get_agent, agent_id}, _from, state) do
+    agent =
+      case state.store.get(agent_id) do
+        {:ok, payload} -> to_record(payload)
+        :error -> nil
+      end
+
+    {:reply, agent, state}
+  end
+
+  def handle_call({:get_events, agent_id}, _from, state) do
+    events = load_events(state.store, agent_id)
+    {:reply, events, put_in(state.event_cursors[agent_id], length(events))}
+  end
+
+  @impl true
+  def handle_info({:notification, _pid, _ref, _channel, agent_id}, state) do
+    case state.store.get(agent_id) do
+      {:ok, payload} ->
+        record = to_record(payload)
+        events = to_events(payload)
+
+        Phoenix.PubSub.broadcast(
+          LegionWeb.PubSub,
+          "legion_web:agents",
+          {record.status, agent_id, record}
+        )
+
+        case Map.fetch(state.event_cursors, agent_id) do
+          {:ok, cursor} ->
+            events
+            |> Enum.drop(cursor)
+            |> Enum.each(&broadcast_event(agent_id, &1))
+
+          :error ->
+            :ok
+        end
+
+        state = put_in(state.event_cursors[agent_id], length(events))
+        {:noreply, state}
+
+      :error ->
+        {:noreply, state}
+    end
+  end
+
+  def handle_info(_message, state), do: {:noreply, state}
+
+  defp validate_store!(store) do
+    if Code.ensure_loaded?(store) and function_exported?(store, :__repo__, 0) and
+         function_exported?(store, :__table__, 0) do
+      :ok
+    else
+      raise ArgumentError,
+            "agents_source: :database store #{inspect(store)} must expose __repo__/0 and __table__/0"
+    end
+  end
+
+  defp load_events(store, agent_id) do
+    case store.get(agent_id) do
+      {:ok, payload} -> to_events(payload)
+      :error -> []
+    end
+  end
+
+  defp to_record(payload) do
+    {pid, running?} =
+      case Legion.lookup(payload.agent_id) do
+        {:ok, pid} -> {pid, Legion.running?(pid)}
+        :error -> {nil, false}
+      end
+
+    %{
+      agent_id: payload.agent_id,
+      parent_agent_id: payload.parent_agent_id,
+      agent_module: payload.agent_module,
+      pid: pid,
+      status: status(running?, payload.status),
+      started_at: to_milliseconds(payload.started_at),
+      finished_at: nil,
+      task: nil,
+      iterations: 0
+    }
+  end
+
+  # A stored :running status without a live local process means the process
+  # died mid-turn. An idle stored status belongs to a completed run.
+  defp status(true, :running), do: :running
+  defp status(true, _idle_or_nil), do: :idle
+  defp status(false, :running), do: :dead
+  defp status(false, _idle_or_nil), do: :done
+
+  defp to_milliseconds(nil), do: nil
+
+  defp to_milliseconds(%NaiveDateTime{} = value) do
+    value
+    |> DateTime.from_naive!("Etc/UTC")
+    |> DateTime.to_unix(:millisecond)
+  end
+
+  defp to_events(%{conversation_state: %{messages: messages}, agent_id: agent_id}) do
+    for {message, seq} <- Enum.with_index(messages, 1), do: to_event(message, seq, agent_id)
+  end
+
+  defp to_events(_payload), do: []
+
+  defp to_event(message, seq, agent_id) do
+    %{
+      seq: seq,
+      agent_id: agent_id,
+      type: event_type(message.type),
+      timestamp: message[:at],
+      data: event_data(message.type, message.content)
+    }
+  end
+
+  defp event_type(:user), do: :message_start
+  defp event_type(:assistant), do: :llm_stop
+  defp event_type(_eval_result_or_error), do: :eval_stop
+
+  defp event_data(:user, content), do: %{message: content}
+
+  defp event_data(:assistant, content) do
+    object =
+      case content do
+        content when is_binary(content) ->
+          case Jason.decode(content) do
+            {:ok, object} -> object
+            {:error, _reason} -> %{"raw" => content}
+          end
+
+        content ->
+          %{"raw" => inspect(content)}
+      end
+
+    %{object: object}
+  end
+
+  defp event_data(:eval_result, content), do: %{success: true, result: content}
+  defp event_data(:error, content), do: %{success: false, error: content}
+
+  defp broadcast_event(agent_id, event) do
+    Phoenix.PubSub.broadcast(
+      LegionWeb.PubSub,
+      "legion_web:agent:#{inspect(agent_id)}",
+      {:new_event, event}
+    )
+  end
+end
