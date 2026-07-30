@@ -1,7 +1,7 @@
 defmodule LegionWeb.MixProject do
   use Mix.Project
 
-  @source_url "https://github.com/dimamik/legion_web"
+  @source_url "https://github.com/software-mansion-labs/legion_web"
   @version "0.3.0"
 
   def project do
@@ -46,11 +46,11 @@ defmodule LegionWeb.MixProject do
 
   defp package do
     [
-      maintainers: ["Dima Mikielewicz"],
+      maintainers: ["Software Mansion"],
       licenses: ["MIT"],
       files: ~w(lib priv/static* .formatter.exs mix.exs README* CHANGELOG* LICENSE*),
       links: %{
-        Website: "https://dimamik.com",
+        Website: "https://swmansion.com/",
         Changelog: "#{@source_url}/blob/main/CHANGELOG.md",
         GitHub: @source_url
       }

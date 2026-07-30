@@ -1,8 +1,8 @@
-defmodule LegionWeb.AgentTracker.DatabaseTest do
+defmodule LegionWeb.AgentTracker.PostgresTest do
   use ExUnit.Case, async: false
 
   alias Legion.Store.Payload
-  alias LegionWeb.AgentTracker.Database
+  alias LegionWeb.AgentTracker.Postgres
 
   defmodule Store do
     def start_link(_opts) do
@@ -37,7 +37,7 @@ defmodule LegionWeb.AgentTracker.DatabaseTest do
       end)
     end
 
-    def __repo__, do: LegionWeb.AgentTracker.DatabaseTest.Repo
+    def __repo__, do: LegionWeb.AgentTracker.PostgresTest.Repo
     def __table__, do: "test_agents"
   end
 
@@ -66,9 +66,9 @@ defmodule LegionWeb.AgentTracker.DatabaseTest do
   end
 
   test "starts with an explicit store and lists at the telemetry limit" do
-    assert {:ok, _pid} = Database.start_link(store: Store, notifications: Notifications)
+    assert {:ok, _pid} = Postgres.start_link(store: Store, notifications: Notifications)
 
-    assert [agent] = Database.list_agents()
+    assert [agent] = Postgres.list_agents()
     assert agent.agent_id == "new"
     assert Store.list_limits() == [100]
   end
@@ -90,19 +90,19 @@ defmodule LegionWeb.AgentTracker.DatabaseTest do
       }
     })
 
-    assert {:ok, _pid} = Database.start_link(store: Store, notifications: Notifications)
+    assert {:ok, _pid} = Postgres.start_link(store: Store, notifications: Notifications)
 
     assert %{agent_id: "history", status: :done, started_at: 1_785_153_662_003} =
-             Database.get_agent("history")
+             Postgres.get_agent("history")
 
-    assert Database.get_agent("missing") == nil
+    assert Postgres.get_agent("missing") == nil
 
     assert [
              %{seq: 1, type: :message_start, data: %{message: "hello"}},
              %{seq: 2, type: :llm_stop, data: %{object: %{"raw" => "not-json"}}},
              %{seq: 3, type: :eval_stop, data: %{success: true, result: "ok"}},
              %{seq: 4, type: :eval_stop, data: %{success: false, error: "failed"}}
-           ] = Database.get_events("history")
+           ] = Postgres.get_events("history")
   end
 
   test "uses Legion.lookup to expose a live agent pid" do
@@ -128,14 +128,14 @@ defmodule LegionWeb.AgentTracker.DatabaseTest do
       started_at: ~N[2026-07-27 12:00:00]
     })
 
-    assert {:ok, _pid} = Database.start_link(store: Store, notifications: Notifications)
-    assert %{pid: ^pid, status: :running} = Database.get_agent("live")
+    assert {:ok, _pid} = Postgres.start_link(store: Store, notifications: Notifications)
+    assert %{pid: ^pid, status: :running} = Postgres.get_agent("live")
   end
 
   test "notification broadcasts the agent's derived current status" do
-    start_supervised!({Database, store: Store, notifications: Notifications})
+    start_supervised!({Postgres, store: Store, notifications: Notifications})
 
-    send(Database, {:notification, self(), make_ref(), "test_agents", "new"})
+    send(Postgres, {:notification, self(), make_ref(), "test_agents", "new"})
 
     assert_receive {:done, "new", %{agent_id: "new", pid: nil, status: :done}}
     refute_receive {:started, "new", _}
@@ -155,10 +155,10 @@ defmodule LegionWeb.AgentTracker.DatabaseTest do
       }
     })
 
-    start_supervised!({Database, store: Store, notifications: Notifications})
+    start_supervised!({Postgres, store: Store, notifications: Notifications})
     Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:\"events\"")
 
-    assert [%{seq: 1, type: :message_start}] = Database.get_events("events")
+    assert [%{seq: 1, type: :message_start}] = Postgres.get_events("events")
 
     Store.put(%Payload{
       agent_id: "events",
@@ -174,7 +174,7 @@ defmodule LegionWeb.AgentTracker.DatabaseTest do
       }
     })
 
-    send(Database, {:notification, self(), make_ref(), "test_agents", "events"})
+    send(Postgres, {:notification, self(), make_ref(), "test_agents", "events"})
 
     assert_receive {:new_event,
                     %{seq: 2, type: :llm_stop, data: %{object: %{"action" => "done"}}}}
@@ -194,10 +194,10 @@ defmodule LegionWeb.AgentTracker.DatabaseTest do
       }
     })
 
-    start_supervised!({Database, store: Store, notifications: Notifications})
+    start_supervised!({Postgres, store: Store, notifications: Notifications})
     Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:\"unprimed\"")
 
-    send(Database, {:notification, self(), make_ref(), "test_agents", "unprimed"})
+    send(Postgres, {:notification, self(), make_ref(), "test_agents", "unprimed"})
 
     refute_receive {:new_event, _}
   end
