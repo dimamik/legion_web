@@ -1,8 +1,8 @@
 defmodule LegionWeb.DashboardLive do
   use LegionWeb, :live_view
 
-  alias LegionWeb.{HumanHandler, TraceReducer}
   alias LegionWeb.Components.{AgentDetail, AgentsList}
+  alias LegionWeb.{HumanHandler, TraceReducer}
 
   @impl true
   def mount(_params, session, socket) do

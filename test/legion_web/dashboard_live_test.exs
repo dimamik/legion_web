@@ -1,8 +1,8 @@
 defmodule LegionWeb.DashboardLiveTest do
   use ExUnit.Case, async: false
 
-  alias LegionWeb.{DashboardLive, TraceReducer}
   alias LegionWeb.AgentTracker.Telemetry
+  alias LegionWeb.{DashboardLive, TraceReducer}
   alias Phoenix.LiveView.Socket
 
   defmodule FakeTool do
