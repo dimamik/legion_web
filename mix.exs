@@ -91,6 +91,9 @@ defmodule LegionWeb.MixProject do
       "assets.build": ["tailwind legion_web", "esbuild legion_web"],
       dev: "run --no-halt dev.exs",
       release: [
+        "assets.build",
+        # Exit on assets diff
+        "cmd git diff --exit-code -- priv/static",
         "cmd git tag v#{@version}",
         "cmd git push",
         "cmd git push --tags",
