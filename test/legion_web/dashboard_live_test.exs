@@ -158,7 +158,7 @@ defmodule LegionWeb.DashboardLiveTest do
       {:noreply, socket} =
         DashboardLive.handle_params(%{"run_id" => encoded}, "/legion", mounted_socket())
 
-      assert socket.assigns.selected_run_id == :missing
+      assert socket.assigns.selected_run_id == nil
       assert socket.assigns.selected_agent == nil
       assert socket.assigns.trace_items == []
       assert socket.assigns.system_prompt == nil

@@ -161,7 +161,7 @@ defmodule LegionWeb.AgentTracker do
       parent_run_id: meta[:parent_run_id],
       agent_module: meta.agent,
       pid: self(),
-      status: :running,
+      status: :idle,
       started_at: System.system_time(:millisecond),
       finished_at: nil,
       task: nil,

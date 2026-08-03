@@ -29,17 +29,17 @@ defmodule LegionWeb.DashboardLive do
 
   @impl true
   def handle_params(%{"run_id" => encoded_run_id}, _uri, socket) do
-    run_id = decode_run_id(encoded_run_id)
-
-    if connected?(socket) do
-      if prev = socket.assigns.selected_run_id do
-        Phoenix.PubSub.unsubscribe(LegionWeb.PubSub, agent_topic(prev))
+    # A run_id is an ephemeral term (make_ref) that goes stale across restarts,
+    # so a bookmarked/back-button URL can point at an agent that no longer exists.
+    # Treat "decodes but not tracked" as no selection rather than rendering a
+    # dangling selected_run_id (which leaves the list patched into a broken state).
+    run_id =
+      case decode_run_id(encoded_run_id) do
+        nil -> nil
+        decoded -> AgentTracker.get_agent(decoded) && decoded
       end
 
-      if run_id do
-        Phoenix.PubSub.subscribe(LegionWeb.PubSub, agent_topic(run_id))
-      end
-    end
+    socket = update_agent_subscription(socket, run_id)
 
     agent = run_id && AgentTracker.get_agent(run_id)
 
@@ -75,11 +75,7 @@ defmodule LegionWeb.DashboardLive do
   end
 
   def handle_params(_params, _uri, socket) do
-    if connected?(socket) do
-      if prev = socket.assigns.selected_run_id do
-        Phoenix.PubSub.unsubscribe(LegionWeb.PubSub, agent_topic(prev))
-      end
-    end
+    socket = update_agent_subscription(socket, nil)
 
     {:noreply,
      socket
@@ -172,6 +168,20 @@ defmodule LegionWeb.DashboardLive do
   end
 
   # Private helpers
+
+  defp update_agent_subscription(socket, run_id) do
+    if connected?(socket) do
+      if prev = socket.assigns.selected_run_id do
+        Phoenix.PubSub.unsubscribe(LegionWeb.PubSub, agent_topic(prev))
+      end
+
+      if run_id do
+        Phoenix.PubSub.subscribe(LegionWeb.PubSub, agent_topic(run_id))
+      end
+    end
+
+    socket
+  end
 
   defp update_agents_list(agents, run_id, record) do
     idx = Enum.find_index(agents, &(&1.run_id == run_id))
