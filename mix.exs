@@ -90,6 +90,8 @@ defmodule LegionWeb.MixProject do
       dev: "run --no-halt dev.exs",
       release: [
         "assets.build",
+        # Exit on assets diff
+        "cmd git diff --exit-code -- priv/static",
         "cmd git tag v#{@version}",
         "cmd git push",
         "cmd git push --tags",
