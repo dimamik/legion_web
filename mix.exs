@@ -59,7 +59,7 @@ defmodule LegionWeb.MixProject do
 
   defp deps do
     [
-      {:legion, "~> 0.3"},
+      {:legion, "~> 0.4"},
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 1.0"},
