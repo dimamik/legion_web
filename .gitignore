@@ -22,7 +22,11 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 legion-*.tar
 
-# Build artifacts from esbuild/tailwind.
-/priv/static/
+# This is only needed to be able to add legion_web as a github dependency in another
+# project. Once we're at a stable release, we can remove this.
+/priv/static/*
+!/priv/static/.gitkeep
+!/priv/static/app.css
+!/priv/static/app.js
 
 .env
