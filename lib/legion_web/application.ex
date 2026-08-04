@@ -22,7 +22,8 @@ defmodule LegionWeb.Application do
   end
 
   defp agent_tracker_config do
-    Application.get_env(:legion_web, :agent_tracker, LegionWeb.AgentTracker.Telemetry)
+    :legion_web
+    |> Application.get_env(:agent_tracker, LegionWeb.AgentTracker.Telemetry)
     |> normalize_agent_tracker()
   end
 
