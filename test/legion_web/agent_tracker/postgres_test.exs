@@ -2,6 +2,8 @@ defmodule LegionWeb.AgentTracker.PostgresTest do
   use ExUnit.Case, async: false
 
   alias Legion.Store.Payload
+  alias LegionWeb.AgentTracker.Agent, as: AgentRecord
+  alias LegionWeb.AgentTracker.Event
   alias LegionWeb.AgentTracker.Postgres
 
   defmodule Store do
@@ -92,16 +94,16 @@ defmodule LegionWeb.AgentTracker.PostgresTest do
 
     assert {:ok, _pid} = Postgres.start_link(store: Store, notifications: Notifications)
 
-    assert %{agent_id: "history", status: :done, started_at: 1_785_153_662_003} =
+    assert %AgentRecord{agent_id: "history", status: :done, started_at: 1_785_153_662_003} =
              Postgres.get_agent("history")
 
     assert Postgres.get_agent("missing") == nil
 
     assert [
-             %{seq: 1, type: :message_start, data: %{message: "hello"}},
-             %{seq: 2, type: :llm_stop, data: %{object: %{"raw" => "not-json"}}},
-             %{seq: 3, type: :eval_stop, data: %{success: true, result: "ok"}},
-             %{seq: 4, type: :eval_stop, data: %{success: false, error: "failed"}}
+             %Event{seq: 1, type: :message_start, data: %{message: "hello"}},
+             %Event{seq: 2, type: :llm_stop, data: %{object: %{"raw" => "not-json"}}},
+             %Event{seq: 3, type: :eval_stop, data: %{success: true, result: "ok"}},
+             %Event{seq: 4, type: :eval_stop, data: %{success: false, error: "failed"}}
            ] = Postgres.get_events("history")
   end
 

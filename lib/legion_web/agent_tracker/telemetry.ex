@@ -15,6 +15,8 @@ defmodule LegionWeb.AgentTracker.Telemetry do
 
   @behaviour LegionWeb.AgentTracker
 
+  alias LegionWeb.AgentTracker.{Agent, Event}
+
   @agents_table :legion_web_agents
   @events_table :legion_web_events
   @max_agents 100
@@ -95,7 +97,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   def handle_info({:event, agent_id, type, data}, state) do
     seq = state.seq + 1
 
-    event = %{
+    event = %Event{
       seq: seq,
       agent_id: agent_id,
       type: type,
@@ -134,7 +136,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   def handle_info(_msg, state), do: {:noreply, state}
 
   def handle_telemetry([:legion, :agent, :started], _measurements, meta, _config) do
-    record = %{
+    record = %Agent{
       agent_id: meta.agent_id,
       parent_agent_id: meta[:parent_agent_id],
       agent_module: meta.agent,
@@ -260,7 +262,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   defp update_agent(agent_id, updates) do
     case :ets.lookup(@agents_table, agent_id) do
       [{^agent_id, record}] ->
-        :ets.insert(@agents_table, {agent_id, Map.merge(record, updates)})
+        :ets.insert(@agents_table, {agent_id, struct(record, updates)})
 
       [] ->
         :ok

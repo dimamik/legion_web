@@ -2,6 +2,7 @@ defmodule LegionWeb.AgentTrackerTest do
   use ExUnit.Case
 
   alias LegionWeb.AgentTracker
+  alias LegionWeb.AgentTracker.Agent
   alias LegionWeb.AgentTracker.Telemetry
 
   setup do
@@ -22,7 +23,7 @@ defmodule LegionWeb.AgentTrackerTest do
   defp insert_agent(agent_id, attrs \\ %{}) do
     record =
       Map.merge(
-        %{
+        %Agent{
           agent_id: agent_id,
           parent_agent_id: nil,
           agent_module: TestAgent,
@@ -94,8 +95,19 @@ defmodule LegionWeb.AgentTrackerTest do
   end
 
   describe "handle_info :agent_started" do
+    test "publishes canonical agent and event structs" do
+      record = insert_agent(:typed)
+
+      assert %{__struct__: LegionWeb.AgentTracker.Agent} = record
+
+      Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect(:typed)}")
+      send(Telemetry, {:event, :typed, :llm_start, %{model: "gpt-4"}})
+
+      assert_receive {:new_event, %{__struct__: LegionWeb.AgentTracker.Event}}
+    end
+
     test "broadcasts agent started" do
-      record = %{
+      record = %Agent{
         agent_id: :new_agent,
         parent_agent_id: nil,
         agent_module: TestAgent,
@@ -173,7 +185,7 @@ defmodule LegionWeb.AgentTrackerTest do
       # Start a process that we can kill
       pid = spawn(fn -> Process.sleep(:infinity) end)
 
-      record = %{
+      record = %Agent{
         agent_id: :monitored,
         parent_agent_id: nil,
         agent_module: TestAgent,
@@ -202,7 +214,7 @@ defmodule LegionWeb.AgentTrackerTest do
     test "does not mark agent as dead if already done" do
       pid = spawn(fn -> Process.sleep(:infinity) end)
 
-      record = %{
+      record = %Agent{
         agent_id: :already_done,
         parent_agent_id: nil,
         agent_module: TestAgent,

@@ -1,3 +1,47 @@
+defmodule LegionWeb.AgentTracker.Agent do
+  @moduledoc "The dashboard projection of a tracked Legion agent."
+
+  @enforce_keys [:agent_id, :status]
+  defstruct [
+    :agent_id,
+    :parent_agent_id,
+    :agent_module,
+    :pid,
+    :status,
+    :started_at,
+    :finished_at,
+    :task,
+    iterations: 0
+  ]
+
+  @type t :: %__MODULE__{
+          agent_id: term(),
+          parent_agent_id: term() | nil,
+          agent_module: module() | nil,
+          pid: pid() | nil,
+          status: :running | :idle | :waiting_for_human | :done | :error | :dead,
+          started_at: integer() | nil,
+          finished_at: integer() | nil,
+          task: String.t() | nil,
+          iterations: non_neg_integer()
+        }
+end
+
+defmodule LegionWeb.AgentTracker.Event do
+  @moduledoc "A dashboard event emitted for a tracked Legion agent."
+
+  @enforce_keys [:seq, :agent_id, :type]
+  defstruct [:seq, :agent_id, :type, :timestamp, data: %{}]
+
+  @type t :: %__MODULE__{
+          seq: pos_integer(),
+          agent_id: term(),
+          type: atom(),
+          timestamp: integer() | nil,
+          data: map()
+        }
+end
+
 defmodule LegionWeb.AgentTracker do
   @moduledoc """
   Query interface for a Legion agent activity tracker.
@@ -29,24 +73,8 @@ defmodule LegionWeb.AgentTracker do
   @type agent_id :: term()
   @type timestamp :: integer()
   @type status :: :running | :idle | :waiting_for_human | :done | :error | :dead
-  @type agent :: %{
-          required(:agent_id) => agent_id(),
-          required(:parent_agent_id) => agent_id() | nil,
-          required(:agent_module) => module(),
-          required(:pid) => pid() | nil,
-          required(:status) => status(),
-          required(:started_at) => timestamp() | nil,
-          optional(:finished_at) => timestamp() | nil,
-          required(:task) => String.t() | nil,
-          required(:iterations) => non_neg_integer()
-        }
-  @type event :: %{
-          required(:seq) => pos_integer(),
-          required(:agent_id) => agent_id(),
-          required(:type) => atom(),
-          required(:timestamp) => timestamp() | nil,
-          required(:data) => map()
-        }
+  @type agent :: Agent.t()
+  @type event :: Event.t()
 
   @doc "Lists tracked agents, ordered from most recently started to oldest."
   @callback list_agents() :: [agent()]

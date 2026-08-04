@@ -1,7 +1,7 @@
 defmodule LegionWeb.DashboardLiveTest do
   use ExUnit.Case, async: false
 
-  alias LegionWeb.AgentTracker.Telemetry
+  alias LegionWeb.AgentTracker.{Agent, Telemetry}
   alias LegionWeb.{DashboardLive, TraceReducer}
   alias Phoenix.LiveView.Socket
 
@@ -36,8 +36,8 @@ defmodule LegionWeb.DashboardLiveTest do
   end
 
   defp agent_record(agent_id, overrides \\ %{}) do
-    Map.merge(
-      %{
+    struct(
+      %Agent{
         agent_id: agent_id,
         parent_agent_id: nil,
         agent_module: FakeAgent,
