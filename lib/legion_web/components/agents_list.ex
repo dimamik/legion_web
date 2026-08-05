@@ -101,7 +101,7 @@ defmodule LegionWeb.Components.AgentsList do
           if(@is_subagent, do: "pl-7", else: "pl-4.5")
         ]}>
           <span>{Helpers.relative_time(@agent.started_at)}</span>
-          <span :if={duration = Helpers.format_duration(@agent.started_at, @agent[:finished_at])}>
+          <span :if={duration = Helpers.format_duration(@agent.started_at, @agent.finished_at)}>
             {duration}
           </span>
           <span :if={@agent.iterations > 0}>iter {@agent.iterations}</span>

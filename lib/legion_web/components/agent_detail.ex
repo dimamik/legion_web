@@ -65,7 +65,7 @@ defmodule LegionWeb.Components.AgentDetail do
             >
               System Prompt
             </button>
-            <span :if={duration = Helpers.format_duration(@agent.started_at, @agent[:finished_at])}>
+            <span :if={duration = Helpers.format_duration(@agent.started_at, @agent.finished_at)}>
               {duration}
             </span>
             <span>{Helpers.relative_time(@agent.started_at)}</span>
