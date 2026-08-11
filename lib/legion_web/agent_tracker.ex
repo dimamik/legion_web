@@ -1,4 +1,4 @@
-defmodule LegionWeb.AgentTracker.Agent do
+defmodule LegionWeb.AgentTracker.LegionAgent do
   @moduledoc "The dashboard projection of a tracked Legion agent."
 
   @enforce_keys [:agent_id, :status]
@@ -15,8 +15,8 @@ defmodule LegionWeb.AgentTracker.Agent do
   ]
 
   @type t :: %__MODULE__{
-          agent_id: term(),
-          parent_agent_id: term() | nil,
+          agent_id: Legion.Store.agent_id(),
+          parent_agent_id: Legion.Store.agent_id() | nil,
           agent_module: module() | nil,
           pid: pid() | nil,
           status: :running | :idle | :waiting_for_human | :done | :error | :dead,
@@ -27,7 +27,7 @@ defmodule LegionWeb.AgentTracker.Agent do
         }
 end
 
-defmodule LegionWeb.AgentTracker.Event do
+defmodule LegionWeb.AgentTracker.LegionEvent do
   @moduledoc "A dashboard event emitted for a tracked Legion agent."
 
   @enforce_keys [:seq, :agent_id, :type]
@@ -35,7 +35,7 @@ defmodule LegionWeb.AgentTracker.Event do
 
   @type t :: %__MODULE__{
           seq: pos_integer(),
-          agent_id: term(),
+          agent_id: Legion.Store.agent_id(),
           type: atom(),
           timestamp: integer() | nil,
           data: map()
@@ -70,11 +70,11 @@ defmodule LegionWeb.AgentTracker do
   return the records described by this interface.
   """
 
-  @type agent_id :: term()
+  @type agent_id :: Legion.Store.agent_id()
   @type timestamp :: integer()
   @type status :: :running | :idle | :waiting_for_human | :done | :error | :dead
-  @type agent :: Agent.t()
-  @type event :: Event.t()
+  @type agent :: LegionAgent.t()
+  @type event :: LegionEvent.t()
 
   @doc "Lists tracked agents, ordered from most recently started to oldest."
   @callback list_agents() :: [agent()]

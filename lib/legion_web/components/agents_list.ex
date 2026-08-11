@@ -6,11 +6,11 @@ defmodule LegionWeb.Components.AgentsList do
   alias LegionWeb.Helpers
 
   attr :agents, :list, required: true
-  attr :selected_agent_id, :any, default: nil
+  attr :selected_agent_id, :string, default: nil
   attr :prefix, :string, required: true
 
   def render(assigns) do
-    agents_by_parent = Enum.group_by(assigns.agents, &Map.get(&1, :parent_agent_id, nil))
+    agents_by_parent = Enum.group_by(assigns.agents, &Map.get(&1, :parent_agent_id))
     root_agents = Map.get(agents_by_parent, nil, [])
 
     assigns =

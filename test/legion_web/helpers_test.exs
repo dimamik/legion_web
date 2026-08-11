@@ -175,21 +175,21 @@ defmodule LegionWeb.HelpersTest do
   end
 
   describe "encode_agent_id/1 and decode_agent_id/1" do
-    test "roundtrip with atom" do
-      agent_id = :some_agent
+    test "roundtrip with string" do
+      agent_id = "some_agent"
       encoded = Helpers.encode_agent_id(agent_id)
       assert is_binary(encoded)
       assert Helpers.decode_agent_id(encoded) == agent_id
     end
 
-    test "roundtrip with reference" do
-      agent_id = make_ref()
+    test "roundtrip with Unicode string" do
+      agent_id = "żółw-agent"
       encoded = Helpers.encode_agent_id(agent_id)
       assert Helpers.decode_agent_id(encoded) == agent_id
     end
 
-    test "roundtrip with tuple" do
-      agent_id = {:agent, 123}
+    test "roundtrip with namespaced string" do
+      agent_id = "agent:123"
       encoded = Helpers.encode_agent_id(agent_id)
       assert Helpers.decode_agent_id(encoded) == agent_id
     end
@@ -198,21 +198,28 @@ defmodule LegionWeb.HelpersTest do
       assert Helpers.decode_agent_id("not-valid-base64!!!") == nil
     end
 
-    test "decode returns nil for corrupted binary" do
-      assert Helpers.decode_agent_id(Base.url_encode64(<<0, 1, 2>>, padding: false)) == nil
+    test "roundtrip with URL-unsafe string" do
+      agent_id = "agent/with?reserved=characters"
+      encoded = Helpers.encode_agent_id(agent_id)
+      assert Helpers.decode_agent_id(encoded) == agent_id
+    end
+
+    test "decode returns nil for non-string input" do
+      encoded_1 = Base.url_encode64(<<0xFF>>, padding: false)
+      assert Helpers.decode_agent_id(encoded_1) == nil
+      assert Helpers.decode_agent_id(123) == nil
     end
   end
 
   describe "agent_topic/1" do
     test "builds topic string" do
-      assert Helpers.agent_topic(:my_agent) == "legion_web:agent::my_agent"
+      assert Helpers.agent_topic("my_agent") == ~s(legion_web:agent:"my_agent")
     end
 
-    test "handles reference agent_id" do
-      ref = make_ref()
-      topic = Helpers.agent_topic(ref)
+    test "handles Unicode agent_id" do
+      topic = Helpers.agent_topic("żółw-agent")
       assert String.starts_with?(topic, "legion_web:agent:")
-      assert topic =~ "#Ref"
+      assert topic =~ "żółw-agent"
     end
   end
 end

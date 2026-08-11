@@ -69,19 +69,19 @@ defmodule LegionWeb.MixProject do
       {:makeup, "~> 1.0"},
       {:makeup_elixir, "~> 1.0"},
       {:earmark, "~> 1.4"},
-      {:igniter, "~> 0.5", optional: true},
 
-      # Dev
+      # Optional
+      {:igniter, "~> 0.5", optional: true},
+      {:ecto_sql, "~> 3.13", optional: true},
+      {:postgrex, "~> 0.22", optional: true},
+
+      # Test and Dev
       {:bandit, "~> 1.5", only: :dev},
       {:esbuild, "~> 0.7", only: :dev, runtime: false},
       {:tailwind, "~> 0.4", only: :dev, runtime: false},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
-      {:ecto_sql, "~> 3.13", only: [:dev, :test]},
-      {:ecto_psql_extras, "~> 0.8", only: [:dev, :test]},
-
-      # Test
       {:floki, "~> 0.33", only: [:dev, :test]}
     ]
   end

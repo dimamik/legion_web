@@ -15,7 +15,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
 
   @behaviour LegionWeb.AgentTracker
 
-  alias LegionWeb.AgentTracker.{Agent, Event}
+  alias LegionWeb.AgentTracker.{LegionAgent, LegionEvent}
 
   @agents_table :legion_web_agents
   @events_table :legion_web_events
@@ -97,7 +97,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   def handle_info({:event, agent_id, type, data}, state) do
     seq = state.seq + 1
 
-    event = %Event{
+    event = %LegionEvent{
       seq: seq,
       agent_id: agent_id,
       type: type,
@@ -136,7 +136,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   def handle_info(_msg, state), do: {:noreply, state}
 
   def handle_telemetry([:legion, :agent, :started], _measurements, meta, _config) do
-    record = %Agent{
+    record = %LegionAgent{
       agent_id: meta.agent_id,
       parent_agent_id: meta[:parent_agent_id],
       agent_module: meta.agent,
@@ -149,18 +149,22 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     }
 
     :ets.insert(@agents_table, {meta.agent_id, record})
-    send(__MODULE__, {:agent_started, meta.agent_id, record})
+    if pid = Process.whereis(__MODULE__), do: send(pid, {:agent_started, meta.agent_id, record})
   end
 
   def handle_telemetry([:legion, :agent, :stopped], _measurements, meta, _config) do
-    send(__MODULE__, {:agent_stopped, meta.agent_id})
+    if pid = Process.whereis(__MODULE__), do: send(pid, {:agent_stopped, meta.agent_id})
   end
 
   def handle_telemetry([:legion, :agent, :message, :start], _measurements, meta, _config) do
     task = if is_binary(meta[:message]), do: meta[:message]
     updates = if task, do: %{task: task}, else: %{}
-    send(__MODULE__, {:status_change, meta.agent_id, :running, updates})
-    send(__MODULE__, {:event, meta.agent_id, :message_start, meta})
+
+    if pid = Process.whereis(__MODULE__),
+      do: send(pid, {:status_change, meta.agent_id, :running, updates})
+
+    if pid = Process.whereis(__MODULE__),
+      do: send(pid, {:event, meta.agent_id, :message_start, meta})
   end
 
   def handle_telemetry([:legion, :agent, :message, :stop], measurements, meta, _config) do
@@ -177,7 +181,8 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   end
 
   def handle_telemetry([:legion, :agent, :message, :exception], measurements, meta, _config) do
-    send(__MODULE__, {:status_change, meta.agent_id, :error, %{}})
+    if pid = Process.whereis(__MODULE__),
+      do: send(pid, {:status_change, meta.agent_id, :error, %{}})
 
     send(
       __MODULE__,
@@ -223,12 +228,15 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   end
 
   def handle_telemetry([:legion_web, :agent, :waiting_for_human], _measurements, meta, _config) do
-    send(__MODULE__, {:waiting_for_human, meta.agent_id})
+    if pid = Process.whereis(__MODULE__), do: send(pid, {:waiting_for_human, meta.agent_id})
   end
 
   def handle_telemetry([:legion_web, :agent, :human_response], _measurements, meta, _config) do
-    send(__MODULE__, {:event, meta.agent_id, :human_response, %{text: meta.text}})
-    send(__MODULE__, {:status_change, meta.agent_id, :running, %{}})
+    if pid = Process.whereis(__MODULE__),
+      do: send(pid, {:event, meta.agent_id, :human_response, %{text: meta.text}})
+
+    if pid = Process.whereis(__MODULE__),
+      do: send(pid, {:status_change, meta.agent_id, :running, %{}})
   end
 
   defp attach_telemetry_handlers do
@@ -255,7 +263,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   end
 
   defp track_and_forward(agent_id, type, data) do
-    send(__MODULE__, {:event, agent_id, type, data})
+    if pid = Process.whereis(__MODULE__), do: send(pid, {:event, agent_id, type, data})
     forward_to_parent(agent_id, type, data)
   end
 
@@ -308,7 +316,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   defp forward_to_parent(agent_id, type, data) do
     case :ets.lookup(@agents_table, agent_id) do
       [{^agent_id, %{parent_agent_id: parent_agent_id}}] when not is_nil(parent_agent_id) ->
-        send(__MODULE__, {:event, parent_agent_id, type, data})
+        if pid = Process.whereis(__MODULE__), do: send(pid, {:event, parent_agent_id, type, data})
 
       _ ->
         :ok

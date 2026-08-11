@@ -32,21 +32,17 @@ defmodule LegionWeb.DashboardLive do
 
   @impl true
   def handle_params(%{"agent_id" => encoded_agent_id}, _uri, socket) do
-    # An agent_id is an ephemeral term (make_ref) that goes stale across restarts,
-    # so a bookmarked/back-button URL can point at an agent that no longer exists.
+    # A bookmarked URL can reference an agent no longer available from the
+    # configured tracker. Treat "decodes but not tracked" as no selection.
     # Treat "decodes but not tracked" as no selection rather than rendering a
     # dangling selected agent (which leaves the list patched into a broken state).
     agent_tracker = socket.assigns.agent_tracker
 
-    agent_id =
-      case decode_agent_id(encoded_agent_id) do
-        nil -> nil
-        decoded -> agent_tracker.get_agent(decoded) && decoded
-      end
+    decoded_agent_id = decode_agent_id(encoded_agent_id)
+    agent = decoded_agent_id && agent_tracker.get_agent(decoded_agent_id)
+    agent_id = agent && decoded_agent_id
 
     socket = update_agent_subscription(socket, agent_id)
-
-    agent = agent_id && agent_tracker.get_agent(agent_id)
 
     trace =
       if agent_id do
@@ -95,7 +91,8 @@ defmodule LegionWeb.DashboardLive do
   # Agent list updates
   @impl true
   def handle_info({event, agent_id, record}, socket)
-      when event in [:started, :stopped, :running, :idle, :done, :error, :waiting, :dead] do
+      when event in [:started, :stopped, :running, :idle, :done, :error, :waiting, :dead] and
+             not is_nil(agent_id) do
     agents = update_agents_list(socket.assigns.agents, agent_id, record)
 
     socket =

@@ -1,7 +1,7 @@
 defmodule LegionWeb.DashboardLiveTest do
   use ExUnit.Case, async: false
 
-  alias LegionWeb.AgentTracker.{Agent, Telemetry}
+  alias LegionWeb.AgentTracker.{LegionAgent, Telemetry}
   alias LegionWeb.{DashboardLive, TraceReducer}
   alias Phoenix.LiveView.Socket
 
@@ -22,7 +22,7 @@ defmodule LegionWeb.DashboardLiveTest do
   end
 
   defmodule ConfiguredTracker do
-    def list_agents, do: [%{agent_id: :configured, started_at: 1}]
+    def list_agents, do: [%{agent_id: "configured", started_at: 1}]
     def get_agent(_agent_id), do: nil
     def get_events(_agent_id), do: []
   end
@@ -37,7 +37,7 @@ defmodule LegionWeb.DashboardLiveTest do
 
   defp agent_record(agent_id, overrides \\ %{}) do
     struct(
-      %Agent{
+      %LegionAgent{
         agent_id: agent_id,
         parent_agent_id: nil,
         agent_module: FakeAgent,
@@ -88,12 +88,12 @@ defmodule LegionWeb.DashboardLiveTest do
     end
 
     test "includes agents already tracked" do
-      :ets.insert(:legion_web_agents, {:agent1, agent_record(:agent1, %{started_at: 100})})
-      :ets.insert(:legion_web_agents, {:agent2, agent_record(:agent2, %{started_at: 200})})
+      :ets.insert(:legion_web_agents, {"agent1", agent_record("agent1", %{started_at: 100})})
+      :ets.insert(:legion_web_agents, {"agent2", agent_record("agent2", %{started_at: 200})})
 
       {:ok, socket} = DashboardLive.mount(%{}, tracker_session(), empty_socket())
 
-      assert [%{agent_id: :agent2}, %{agent_id: :agent1}] = socket.assigns.agents
+      assert [%{agent_id: "agent2"}, %{agent_id: "agent1"}] = socket.assigns.agents
     end
 
     test "uses the tracker passed through the LiveView session" do
@@ -101,7 +101,7 @@ defmodule LegionWeb.DashboardLiveTest do
         DashboardLive.mount(%{}, %{"agent_tracker" => ConfiguredTracker}, empty_socket())
 
       assert socket.assigns.agent_tracker == ConfiguredTracker
-      assert socket.assigns.agents == [%{agent_id: :configured, started_at: 1}]
+      assert socket.assigns.agents == [%{agent_id: "configured", started_at: 1}]
     end
   end
 
@@ -109,8 +109,8 @@ defmodule LegionWeb.DashboardLiveTest do
     test "clears selected agent state" do
       socket =
         mounted_socket(%{
-          selected_agent_id: :old,
-          selected_agent: agent_record(:old),
+          selected_agent_id: "old",
+          selected_agent: agent_record("old"),
           trace_items: [{:message, %{text: "x"}}],
           system_prompt: "some prompt",
           agent_config: %{foo: :bar}
@@ -128,7 +128,7 @@ defmodule LegionWeb.DashboardLiveTest do
 
   describe "handle_params/3 with a agent_id" do
     test "loads agent, replays events, and populates system_prompt/config" do
-      agent_id = :demo
+      agent_id = "demo"
       :ets.insert(:legion_web_agents, {agent_id, agent_record(agent_id)})
 
       :ets.insert(
@@ -158,7 +158,7 @@ defmodule LegionWeb.DashboardLiveTest do
     end
 
     test "populates Vault with every tool's config before rendering the prompt" do
-      agent_id = :vault_demo
+      agent_id = "vault_demo"
       :ets.insert(:legion_web_agents, {agent_id, agent_record(agent_id)})
 
       encoded = LegionWeb.Helpers.encode_agent_id(agent_id)
@@ -171,7 +171,7 @@ defmodule LegionWeb.DashboardLiveTest do
     end
 
     test "clears state when agent_id is unknown" do
-      encoded = LegionWeb.Helpers.encode_agent_id(:missing)
+      encoded = LegionWeb.Helpers.encode_agent_id("missing")
 
       {:noreply, socket} =
         DashboardLive.handle_params(%{"agent_id" => encoded}, "/legion", mounted_socket())
@@ -193,64 +193,64 @@ defmodule LegionWeb.DashboardLiveTest do
 
   describe "handle_info/2 - agent lifecycle" do
     test "adds a new agent on :started" do
-      record = agent_record(:agent1, %{started_at: 100})
+      record = agent_record("agent1", %{started_at: 100})
 
       {:noreply, socket} =
-        DashboardLive.handle_info({:started, :agent1, record}, mounted_socket())
+        DashboardLive.handle_info({:started, "agent1", record}, mounted_socket())
 
-      assert [%{agent_id: :agent1}] = socket.assigns.agents
+      assert [%{agent_id: "agent1"}] = socket.assigns.agents
     end
 
     test "replaces existing agent with same agent_id" do
-      existing = agent_record(:agent1, %{started_at: 100, status: :running})
+      existing = agent_record("agent1", %{started_at: 100, status: :running})
       socket = mounted_socket(%{agents: [existing]})
 
       updated = %{existing | status: :done}
-      {:noreply, socket} = DashboardLive.handle_info({:stopped, :agent1, updated}, socket)
+      {:noreply, socket} = DashboardLive.handle_info({:stopped, "agent1", updated}, socket)
 
-      assert [%{agent_id: :agent1, status: :done}] = socket.assigns.agents
+      assert [%{agent_id: "agent1", status: :done}] = socket.assigns.agents
     end
 
     test "sorts the list by started_at descending" do
-      old = agent_record(:old, %{started_at: 100})
-      new = agent_record(:new, %{started_at: 500})
+      old = agent_record("old", %{started_at: 100})
+      new = agent_record("new", %{started_at: 500})
       socket = mounted_socket(%{agents: [old]})
 
-      {:noreply, socket} = DashboardLive.handle_info({:started, :new, new}, socket)
+      {:noreply, socket} = DashboardLive.handle_info({:started, "new", new}, socket)
 
-      assert [%{agent_id: :new}, %{agent_id: :old}] = socket.assigns.agents
+      assert [%{agent_id: "new"}, %{agent_id: "old"}] = socket.assigns.agents
     end
 
     test "updates selected_agent when the broadcast matches the current selection" do
-      record = agent_record(:agent1, %{status: :running})
+      record = agent_record("agent1", %{status: :running})
 
       socket =
         mounted_socket(%{
-          selected_agent_id: :agent1,
+          selected_agent_id: "agent1",
           selected_agent: record,
           agents: [record]
         })
 
       updated = %{record | status: :done}
-      {:noreply, socket} = DashboardLive.handle_info({:stopped, :agent1, updated}, socket)
+      {:noreply, socket} = DashboardLive.handle_info({:stopped, "agent1", updated}, socket)
 
       assert socket.assigns.selected_agent.status == :done
     end
 
     test "leaves selected_agent untouched for a different agent_id" do
-      selected = agent_record(:agent1)
-      other = agent_record(:agent2)
+      selected = agent_record("agent1")
+      other = agent_record("agent2")
 
       socket =
         mounted_socket(%{
-          selected_agent_id: :agent1,
+          selected_agent_id: "agent1",
           selected_agent: selected,
           agents: [selected]
         })
 
-      {:noreply, socket} = DashboardLive.handle_info({:started, :agent2, other}, socket)
+      {:noreply, socket} = DashboardLive.handle_info({:started, "agent2", other}, socket)
 
-      assert socket.assigns.selected_agent.agent_id == :agent1
+      assert socket.assigns.selected_agent.agent_id == "agent1"
     end
   end
 
@@ -258,10 +258,10 @@ defmodule LegionWeb.DashboardLiveTest do
     test ":new_event pushes through the reducer and updates trace_items" do
       event = %{
         seq: 1,
-        agent_id: :main,
+        agent_id: "main",
         type: :message_start,
         timestamp: 1,
-        data: %{agent_id: :main, message: "hi"}
+        data: %{agent_id: "main", message: "hi"}
       }
 
       {:noreply, socket} = DashboardLive.handle_info({:new_event, event}, mounted_socket())
@@ -327,7 +327,7 @@ defmodule LegionWeb.DashboardLiveTest do
     end
 
     test "resets the chat form when the selected agent has a dead pid" do
-      agent = agent_record(:agent1, %{pid: spawn(fn -> :ok end)})
+      agent = agent_record("agent1", %{pid: spawn(fn -> :ok end)})
       Process.sleep(5)
       refute Process.alive?(agent.pid)
 
@@ -342,17 +342,17 @@ defmodule LegionWeb.DashboardLiveTest do
 
   describe "AgentTracker integration" do
     test "mount reflects tracker state and handle_params loads agent by agent_id" do
-      :ets.insert(:legion_web_agents, {:x, agent_record(:x, %{started_at: 42})})
+      :ets.insert(:legion_web_agents, {"x", agent_record("x", %{started_at: 42})})
 
       {:ok, socket} = DashboardLive.mount(%{}, tracker_session(), empty_socket())
-      assert Enum.any?(socket.assigns.agents, &(&1.agent_id == :x))
+      assert Enum.any?(socket.assigns.agents, &(&1.agent_id == "x"))
 
-      encoded = LegionWeb.Helpers.encode_agent_id(:x)
+      encoded = LegionWeb.Helpers.encode_agent_id("x")
 
       {:noreply, socket} =
         DashboardLive.handle_params(%{"agent_id" => encoded}, "/legion", socket)
 
-      assert socket.assigns.selected_agent.agent_id == :x
+      assert socket.assigns.selected_agent.agent_id == "x"
     end
   end
 end

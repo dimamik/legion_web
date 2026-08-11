@@ -10,13 +10,15 @@ if Code.ensure_loaded?(Postgrex) do
 
     ## Usage
 
-    Define a store with `Legion.Store.Postgres`:
+    Define a `Legion.Store.Postgres` store and configure it for Legion:
 
         defmodule MyApp.AgentStore do
           use Legion.Store.Postgres, repo: MyApp.Repo
         end
 
-    Then configure LegionWeb to use the database tracker:
+        config :legion, :store, MyApp.AgentStore
+
+    Configure LegionWeb to use it:
 
         config :legion_web, :agent_tracker,
           {LegionWeb.AgentTracker.Postgres, store: MyApp.AgentStore}
@@ -44,7 +46,7 @@ if Code.ensure_loaded?(Postgrex) do
 
     @behaviour LegionWeb.AgentTracker
 
-    alias LegionWeb.AgentTracker.{Agent, Event}
+    alias LegionWeb.AgentTracker.{LegionAgent, LegionEvent}
 
     @max_agents 100
 
@@ -160,7 +162,7 @@ if Code.ensure_loaded?(Postgrex) do
           :error -> {nil, false}
         end
 
-      %Agent{
+      %LegionAgent{
         agent_id: payload.agent_id,
         parent_agent_id: payload.parent_agent_id,
         agent_module: payload.agent_module,
@@ -195,7 +197,7 @@ if Code.ensure_loaded?(Postgrex) do
     defp to_events(_payload), do: []
 
     defp to_event(message, seq, agent_id) do
-      %Event{
+      %LegionEvent{
         seq: seq,
         agent_id: agent_id,
         type: event_type(message.type),
