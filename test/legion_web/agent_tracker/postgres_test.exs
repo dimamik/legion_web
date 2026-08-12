@@ -67,12 +67,12 @@ defmodule LegionWeb.AgentTracker.PostgresTest do
     :ok
   end
 
-  test "starts with an explicit store and lists at the telemetry limit" do
+  test "passes requested list limit to the configured store" do
     assert {:ok, _pid} = Postgres.start_link(store: Store, notifications: Notifications)
 
-    assert [agent] = Postgres.list_agents()
+    assert [agent] = Postgres.list_agents(50)
     assert agent.agent_id == "new"
-    assert Store.list_limits() == [100]
+    assert Store.list_limits() == [50]
   end
 
   test "reads agent records and durable events through the GenServer" do

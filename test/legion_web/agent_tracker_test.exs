@@ -17,7 +17,7 @@ defmodule LegionWeb.AgentTrackerTest do
 
   test "defines the tracker query behaviour" do
     assert AgentTracker.behaviour_info(:callbacks) |> Enum.sort() ==
-             [get_agent: 1, get_events: 1, list_agents: 0]
+             [get_agent: 1, get_events: 1, list_agents: 1]
   end
 
   defp insert_agent(agent_id, attrs \\ %{}) do
@@ -41,18 +41,26 @@ defmodule LegionWeb.AgentTrackerTest do
     record
   end
 
-  describe "list_agents/0" do
+  describe "list_agents/1" do
     test "returns empty list when no agents" do
-      assert Telemetry.list_agents() == []
+      assert Telemetry.list_agents(50) == []
     end
 
     test "returns agents sorted by started_at desc" do
       insert_agent("old", %{started_at: 1000})
       insert_agent("new", %{started_at: 2000})
 
-      agents = Telemetry.list_agents()
+      agents = Telemetry.list_agents(50)
       assert length(agents) == 2
       assert hd(agents).agent_id == "new"
+    end
+
+    test "returns no more agents than requested" do
+      insert_agent("old", %{started_at: 1_000})
+      insert_agent("middle", %{started_at: 2_000})
+      insert_agent("new", %{started_at: 3_000})
+
+      assert [%{agent_id: "new"}, %{agent_id: "middle"}] = Telemetry.list_agents(2)
     end
   end
 

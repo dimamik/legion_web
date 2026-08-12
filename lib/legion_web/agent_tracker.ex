@@ -76,8 +76,8 @@ defmodule LegionWeb.AgentTracker do
   @type agent :: LegionAgent.t()
   @type event :: LegionEvent.t()
 
-  @doc "Lists tracked agents, ordered from most recently started to oldest."
-  @callback list_agents() :: [agent()]
+  @doc "Lists up to `limit` tracked agents, newest first."
+  @callback list_agents(pos_integer()) :: [agent()]
 
   @doc "Returns the tracked agent with the given ID, or `nil` when it is absent."
   @callback get_agent(agent_id()) :: agent() | nil

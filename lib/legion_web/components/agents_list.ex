@@ -8,10 +8,18 @@ defmodule LegionWeb.Components.AgentsList do
   attr :agents, :list, required: true
   attr :selected_agent_id, :string, default: nil
   attr :prefix, :string, required: true
+  attr :has_more, :boolean, default: false
 
   def render(assigns) do
     agents_by_parent = Enum.group_by(assigns.agents, &Map.get(&1, :parent_agent_id))
-    root_agents = Map.get(agents_by_parent, nil, [])
+    loaded_agent_ids = MapSet.new(assigns.agents, & &1.agent_id)
+
+    root_agents =
+      assigns.agents
+      |> Enum.filter(fn agent ->
+        parent_agent_id = Map.get(agent, :parent_agent_id)
+        is_nil(parent_agent_id) or not MapSet.member?(loaded_agent_ids, parent_agent_id)
+      end)
 
     assigns =
       assigns
@@ -46,6 +54,14 @@ defmodule LegionWeb.Components.AgentsList do
             depth={0}
           />
         </ul>
+        <div :if={@has_more} class="px-5 pb-4">
+          <button
+            phx-click="load_more"
+            class="w-full py-2 text-xs font-medium text-sol-violet hover:text-sol-violet/80 transition-colors"
+          >
+            Load more
+          </button>
+        </div>
       </div>
     </aside>
     """

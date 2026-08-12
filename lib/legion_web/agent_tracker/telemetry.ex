@@ -27,11 +27,12 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   end
 
   @impl true
-  def list_agents do
+  def list_agents(limit) do
     @agents_table
     |> :ets.tab2list()
     |> Enum.map(&elem(&1, 1))
     |> Enum.sort_by(& &1.started_at, :desc)
+    |> Enum.take(limit)
   end
 
   @impl true

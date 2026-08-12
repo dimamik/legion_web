@@ -4,6 +4,10 @@ defmodule LegionWeb.DashboardLive do
   alias LegionWeb.Components.{AgentDetail, AgentsList}
   alias LegionWeb.{HumanHandler, TraceReducer}
 
+  @page_size 5
+
+  def page_size, do: @page_size
+
   @impl true
   def mount(_params, session, socket) do
     agent_tracker = session["agent_tracker"]
@@ -19,7 +23,8 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:live_transport, session["live_transport"])
      |> assign(:csp_nonces, session["csp_nonces"])
      |> assign(:agent_tracker, agent_tracker)
-     |> assign(:agents, agent_tracker.list_agents())
+     |> assign(:agents, agent_tracker.list_agents(@page_size))
+     |> assign(:list_limit, @page_size)
      |> assign(:selected_agent_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:trace, TraceReducer.new())
@@ -147,6 +152,15 @@ defmodule LegionWeb.DashboardLive do
     {:noreply, assign(socket, :show_prompt_modal, false)}
   end
 
+  def handle_event("load_more", _params, socket) do
+    list_limit = socket.assigns.list_limit + @page_size
+
+    {:noreply,
+     socket
+     |> assign(:list_limit, list_limit)
+     |> assign(:agents, socket.assigns.agent_tracker.list_agents(list_limit))}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -155,6 +169,7 @@ defmodule LegionWeb.DashboardLive do
         agents={@agents}
         selected_agent_id={@selected_agent_id}
         prefix={@prefix}
+        has_more={length(@agents) >= @list_limit}
       />
       <AgentDetail.render
         agent={@selected_agent}
