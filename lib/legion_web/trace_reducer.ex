@@ -48,7 +48,7 @@ defmodule LegionWeb.TraceReducer do
   defp add_to_subagent(state, %{type: :eval_stop, data: %{success: true}}), do: state
 
   defp add_to_subagent(state, event) do
-    key = event.data[:run_id]
+    key = event.data[:agent_id]
     name = agent_short_name(event.data[:agent])
     item = classify(event)
 
@@ -220,8 +220,8 @@ defmodule LegionWeb.TraceReducer do
     end)
   end
 
-  defp subagent_event?(%{run_id: run_id, data: %{run_id: data_run_id}})
-       when run_id != data_run_id,
+  defp subagent_event?(%{agent_id: agent_id, data: %{agent_id: data_agent_id}})
+       when agent_id != data_agent_id,
        do: true
 
   defp subagent_event?(_), do: false

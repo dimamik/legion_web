@@ -6,11 +6,11 @@ defmodule LegionWeb.Components.AgentsList do
   alias LegionWeb.Helpers
 
   attr :agents, :list, required: true
-  attr :selected_run_id, :any, default: nil
+  attr :selected_agent_id, :string, default: nil
   attr :prefix, :string, required: true
 
   def render(assigns) do
-    agents_by_parent = Enum.group_by(assigns.agents, &Map.get(&1, :parent_run_id, nil))
+    agents_by_parent = Enum.group_by(assigns.agents, &Map.get(&1, :parent_agent_id))
     root_agents = Map.get(agents_by_parent, nil, [])
 
     assigns =
@@ -41,7 +41,7 @@ defmodule LegionWeb.Components.AgentsList do
             :for={agent <- @root_agents}
             agent={agent}
             agents_by_parent={@agents_by_parent}
-            selected_run_id={@selected_run_id}
+            selected_agent_id={@selected_agent_id}
             prefix={@prefix}
             depth={0}
           />
@@ -53,14 +53,14 @@ defmodule LegionWeb.Components.AgentsList do
 
   attr :agent, :map, required: true
   attr :agents_by_parent, :map, required: true
-  attr :selected_run_id, :any, required: true
+  attr :selected_agent_id, :any, required: true
   attr :prefix, :string, required: true
   attr :depth, :integer, required: true
 
   def agent_tree_node(assigns) do
-    children = Map.get(assigns.agents_by_parent, assigns.agent.run_id, [])
-    is_subagent = assigns.agent.parent_run_id != nil
-    selected = assigns.selected_run_id == assigns.agent.run_id
+    children = Map.get(assigns.agents_by_parent, assigns.agent.agent_id, [])
+    is_subagent = assigns.agent.parent_agent_id != nil
+    selected = assigns.selected_agent_id == assigns.agent.agent_id
 
     assigns =
       assigns
@@ -71,7 +71,7 @@ defmodule LegionWeb.Components.AgentsList do
     ~H"""
     <li>
       <.link
-        patch={"#{@prefix}/#{Helpers.encode_run_id(@agent.run_id)}"}
+        patch={"#{@prefix}/#{Helpers.encode_agent_id(@agent.agent_id)}"}
         class={[
           "block py-3 cursor-pointer transition-all duration-150 border-l-2",
           @selected && "bg-sol-base3 border-l-sol-violet",
@@ -101,7 +101,7 @@ defmodule LegionWeb.Components.AgentsList do
           if(@is_subagent, do: "pl-7", else: "pl-4.5")
         ]}>
           <span>{Helpers.relative_time(@agent.started_at)}</span>
-          <span :if={duration = Helpers.format_duration(@agent.started_at, @agent[:finished_at])}>
+          <span :if={duration = Helpers.format_duration(@agent.started_at, @agent.finished_at)}>
             {duration}
           </span>
           <span :if={@agent.iterations > 0}>iter {@agent.iterations}</span>
@@ -112,7 +112,7 @@ defmodule LegionWeb.Components.AgentsList do
           :for={child <- @children}
           agent={child}
           agents_by_parent={@agents_by_parent}
-          selected_run_id={@selected_run_id}
+          selected_agent_id={@selected_agent_id}
           prefix={@prefix}
           depth={@depth + 1}
         />

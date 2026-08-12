@@ -86,20 +86,21 @@ defmodule LegionWeb.Helpers do
     |> Phoenix.HTML.raw()
   end
 
-  def agent_topic(run_id), do: "legion_web:agent:#{inspect(run_id)}"
+  def agent_topic(agent_id), do: "legion_web:agent:#{inspect(agent_id)}"
 
-  def encode_run_id(run_id) do
-    run_id
-    |> :erlang.term_to_binary()
+  def encode_agent_id(agent_id) do
+    agent_id
     |> Base.url_encode64(padding: false)
   end
 
-  def decode_run_id(encoded) when is_binary(encoded) do
-    case Base.url_decode64(encoded, padding: false) do
-      {:ok, binary} -> :erlang.binary_to_term(binary, [:safe])
-      :error -> nil
+  def decode_agent_id(encoded) when is_binary(encoded) do
+    with {:ok, agent_id} <- Base.url_decode64(encoded, padding: false),
+         true <- String.valid?(agent_id) do
+      agent_id
+    else
+      _ -> nil
     end
-  rescue
-    _ -> nil
   end
+
+  def decode_agent_id(_), do: nil
 end

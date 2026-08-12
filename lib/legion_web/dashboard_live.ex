@@ -1,11 +1,13 @@
 defmodule LegionWeb.DashboardLive do
   use LegionWeb, :live_view
 
-  alias LegionWeb.{AgentTracker, HumanHandler, TraceReducer}
   alias LegionWeb.Components.{AgentDetail, AgentsList}
+  alias LegionWeb.{HumanHandler, TraceReducer}
 
   @impl true
   def mount(_params, session, socket) do
+    agent_tracker = session["agent_tracker"]
+
     if connected?(socket) do
       Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agents")
     end
@@ -16,8 +18,9 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:live_path, session["live_path"])
      |> assign(:live_transport, session["live_transport"])
      |> assign(:csp_nonces, session["csp_nonces"])
-     |> assign(:agents, AgentTracker.list_agents())
-     |> assign(:selected_run_id, nil)
+     |> assign(:agent_tracker, agent_tracker)
+     |> assign(:agents, agent_tracker.list_agents())
+     |> assign(:selected_agent_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:trace, TraceReducer.new())
      |> assign(:trace_items, [])
@@ -28,25 +31,23 @@ defmodule LegionWeb.DashboardLive do
   end
 
   @impl true
-  def handle_params(%{"run_id" => encoded_run_id}, _uri, socket) do
-    # A run_id is an ephemeral term (make_ref) that goes stale across restarts,
-    # so a bookmarked/back-button URL can point at an agent that no longer exists.
+  def handle_params(%{"agent_id" => encoded_agent_id}, _uri, socket) do
+    # A bookmarked URL can reference an agent no longer available from the
+    # configured tracker. Treat "decodes but not tracked" as no selection.
     # Treat "decodes but not tracked" as no selection rather than rendering a
-    # dangling selected_run_id (which leaves the list patched into a broken state).
-    run_id =
-      case decode_run_id(encoded_run_id) do
-        nil -> nil
-        decoded -> AgentTracker.get_agent(decoded) && decoded
-      end
+    # dangling selected agent (which leaves the list patched into a broken state).
+    agent_tracker = socket.assigns.agent_tracker
 
-    socket = update_agent_subscription(socket, run_id)
+    decoded_agent_id = decode_agent_id(encoded_agent_id)
+    agent = decoded_agent_id && agent_tracker.get_agent(decoded_agent_id)
+    agent_id = agent && decoded_agent_id
 
-    agent = run_id && AgentTracker.get_agent(run_id)
+    socket = update_agent_subscription(socket, agent_id)
 
     trace =
-      if run_id do
-        run_id
-        |> AgentTracker.get_events()
+      if agent_id do
+        agent_id
+        |> agent_tracker.get_events()
         |> Enum.reduce(TraceReducer.new(), &TraceReducer.push(&2, &1))
       else
         TraceReducer.new()
@@ -65,7 +66,7 @@ defmodule LegionWeb.DashboardLive do
 
     {:noreply,
      socket
-     |> assign(:selected_run_id, run_id)
+     |> assign(:selected_agent_id, agent_id)
      |> assign(:selected_agent, agent)
      |> assign(:trace, trace)
      |> assign(:trace_items, TraceReducer.items(trace))
@@ -79,7 +80,7 @@ defmodule LegionWeb.DashboardLive do
 
     {:noreply,
      socket
-     |> assign(:selected_run_id, nil)
+     |> assign(:selected_agent_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:trace, TraceReducer.new())
      |> assign(:trace_items, [])
@@ -89,14 +90,15 @@ defmodule LegionWeb.DashboardLive do
 
   # Agent list updates
   @impl true
-  def handle_info({event, run_id, record}, socket)
-      when event in [:started, :stopped, :running, :idle, :done, :error, :waiting, :dead] do
-    agents = update_agents_list(socket.assigns.agents, run_id, record)
+  def handle_info({event, agent_id, record}, socket)
+      when event in [:started, :stopped, :running, :idle, :done, :error, :waiting, :dead] and
+             not is_nil(agent_id) do
+    agents = update_agents_list(socket.assigns.agents, agent_id, record)
 
     socket =
       socket
       |> assign(:agents, agents)
-      |> maybe_update_selected_agent(run_id, record)
+      |> maybe_update_selected_agent(agent_id, record)
 
     {:noreply, socket}
   end
@@ -123,7 +125,7 @@ defmodule LegionWeb.DashboardLive do
     %{selected_agent: agent} = socket.assigns
 
     if agent && agent.pid && Process.alive?(agent.pid) do
-      case HumanHandler.respond(agent.run_id, text) do
+      case HumanHandler.respond(agent.agent_id, text) do
         :ok ->
           :ok
 
@@ -151,7 +153,7 @@ defmodule LegionWeb.DashboardLive do
     <div class="flex h-screen overflow-hidden bg-sol-base3">
       <AgentsList.render
         agents={@agents}
-        selected_run_id={@selected_run_id}
+        selected_agent_id={@selected_agent_id}
         prefix={@prefix}
       />
       <AgentDetail.render
@@ -169,22 +171,22 @@ defmodule LegionWeb.DashboardLive do
 
   # Private helpers
 
-  defp update_agent_subscription(socket, run_id) do
+  defp update_agent_subscription(socket, agent_id) do
     if connected?(socket) do
-      if prev = socket.assigns.selected_run_id do
+      if prev = socket.assigns.selected_agent_id do
         Phoenix.PubSub.unsubscribe(LegionWeb.PubSub, agent_topic(prev))
       end
 
-      if run_id do
-        Phoenix.PubSub.subscribe(LegionWeb.PubSub, agent_topic(run_id))
+      if agent_id do
+        Phoenix.PubSub.subscribe(LegionWeb.PubSub, agent_topic(agent_id))
       end
     end
 
     socket
   end
 
-  defp update_agents_list(agents, run_id, record) do
-    idx = Enum.find_index(agents, &(&1.run_id == run_id))
+  defp update_agents_list(agents, agent_id, record) do
+    idx = Enum.find_index(agents, &(&1.agent_id == agent_id))
 
     if idx do
       List.replace_at(agents, idx, record)
@@ -234,8 +236,8 @@ defmodule LegionWeb.DashboardLive do
     |> String.replace("&amp;", "&")
   end
 
-  defp maybe_update_selected_agent(socket, run_id, record) do
-    if socket.assigns.selected_run_id == run_id do
+  defp maybe_update_selected_agent(socket, agent_id, record) do
+    if socket.assigns.selected_agent_id == agent_id do
       assign(socket, :selected_agent, record)
     else
       socket

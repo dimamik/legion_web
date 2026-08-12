@@ -64,7 +64,7 @@ defmodule LegionWeb.Router do
           get "/js-:md5", LegionWeb.Assets, :js, as: :legion_web_asset
 
           live "/", LegionWeb.DashboardLive, :index, route_opts
-          live "/:run_id", LegionWeb.DashboardLive, :show, route_opts
+          live "/:agent_id", LegionWeb.DashboardLive, :show, route_opts
         end
       end
     end
@@ -107,6 +107,7 @@ defmodule LegionWeb.Router do
     csp_keys = expand_csp_nonce_keys(csp_key)
 
     %{
+      "agent_tracker" => LegionWeb.Application.agent_tracker(),
       "prefix" => prefix,
       "live_path" => live_path,
       "live_transport" => live_transport,

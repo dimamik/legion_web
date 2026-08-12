@@ -1,7 +1,7 @@
 defmodule LegionWeb.MixProject do
   use Mix.Project
 
-  @source_url "https://github.com/dimamik/legion_web"
+  @source_url "https://github.com/software-mansion-labs/legion_web"
   @version "0.3.0"
 
   def project do
@@ -46,11 +46,11 @@ defmodule LegionWeb.MixProject do
 
   defp package do
     [
-      maintainers: ["Dima Mikielewicz"],
+      maintainers: ["Software Mansion"],
       licenses: ["MIT"],
       files: ~w(lib priv/static* .formatter.exs mix.exs README* CHANGELOG* LICENSE*),
       links: %{
-        Website: "https://dimamik.com",
+        Website: "https://swmansion.com/",
         Changelog: "#{@source_url}/blob/main/CHANGELOG.md",
         GitHub: @source_url
       }
@@ -59,7 +59,7 @@ defmodule LegionWeb.MixProject do
 
   defp deps do
     [
-      {:legion, "~> 0.4"},
+      {:legion, git: "https://github.com/software-mansion-labs/legion"},
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 1.0"},
@@ -69,17 +69,19 @@ defmodule LegionWeb.MixProject do
       {:makeup, "~> 1.0"},
       {:makeup_elixir, "~> 1.0"},
       {:earmark, "~> 1.4"},
-      {:igniter, "~> 0.5", optional: true},
 
-      # Dev
+      # Optional
+      {:igniter, "~> 0.5", optional: true},
+      {:ecto_sql, "~> 3.13", optional: true},
+      {:postgrex, "~> 0.22", optional: true},
+
+      # Test and Dev
       {:bandit, "~> 1.5", only: :dev},
       {:esbuild, "~> 0.7", only: :dev, runtime: false},
       {:tailwind, "~> 0.4", only: :dev, runtime: false},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false},
-
-      # Test
       {:floki, "~> 0.33", only: [:dev, :test]}
     ]
   end

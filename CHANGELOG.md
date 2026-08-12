@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
+- Add the configurable `LegionWeb.AgentTracker` interface, with telemetry-based tracking as the default
+- Add `LegionWeb.AgentTracker.Postgres` for loading persisted agents and conversation events from a PostgreSQL-backed `Legion.Store`, with live updates from database notifications
+- Align dashboard records, routes, PubSub messages, and human-tool integration with Legion's `agent_id` and `parent_agent_id` terminology
+- Ship compiled dashboard CSS and JavaScript with the package
+- Update project attribution and repository links to Software Mansion
+
 ## v0.3.0 - 2026-04-21
 
 ### Changes

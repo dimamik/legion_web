@@ -5,7 +5,7 @@ defmodule LegionWeb.TraceReducerTest do
 
   defp event(attrs) do
     Map.merge(
-      %{seq: 1, run_id: :main, timestamp: 1_000, data: %{run_id: :main}},
+      %{seq: 1, agent_id: "main", timestamp: 1_000, data: %{agent_id: "main"}},
       attrs
     )
   end
@@ -40,26 +40,28 @@ defmodule LegionWeb.TraceReducerTest do
 
   describe "classify - simple event types" do
     test "message_start becomes :message" do
-      [item] = items([event(%{type: :message_start, data: %{run_id: :main, message: "hello"}})])
+      [item] =
+        items([event(%{type: :message_start, data: %{agent_id: "main", message: "hello"}})])
+
       assert {:message, %{text: "hello", seq: 1, ts: 1_000}} = item
     end
 
     test "human_response becomes :human_response" do
-      [item] = items([event(%{type: :human_response, data: %{run_id: :main, text: "yes"}})])
+      [item] = items([event(%{type: :human_response, data: %{agent_id: "main", text: "yes"}})])
       assert {:human_response, %{text: "yes"}} = item
     end
 
     test "message_exception becomes :exception" do
       [item] =
         items([
-          event(%{type: :message_exception, data: %{run_id: :main, reason: "timeout"}})
+          event(%{type: :message_exception, data: %{agent_id: "main", reason: "timeout"}})
         ])
 
       assert {:exception, %{reason: "timeout"}} = item
     end
 
     test "unrecognized type becomes :unknown" do
-      [item] = items([event(%{type: :something_weird, data: %{run_id: :main}})])
+      [item] = items([event(%{type: :something_weird, data: %{agent_id: "main"}})])
       assert {:unknown, %{type: :something_weird}} = item
     end
   end
@@ -71,7 +73,7 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "return", "code" => nil, "result" => "42"},
               duration: 100
             }
@@ -89,7 +91,7 @@ defmodule LegionWeb.TraceReducerTest do
         items([
           event(%{
             type: :llm_stop,
-            data: %{run_id: :main, object: %{"action" => "done"}, duration: 50}
+            data: %{agent_id: "main", object: %{"action" => "done"}, duration: 50}
           })
         ])
 
@@ -104,7 +106,7 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{},
               error: %{message: "rate limited"},
               duration: 10
@@ -124,7 +126,7 @@ defmodule LegionWeb.TraceReducerTest do
         items([
           event(%{
             type: :llm_stop,
-            data: %{run_id: :main, object: %{"action" => "done"}, duration: 50}
+            data: %{agent_id: "main", object: %{"action" => "done"}, duration: 50}
           })
         ])
 
@@ -140,7 +142,7 @@ defmodule LegionWeb.TraceReducerTest do
             seq: 1,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_continue", "code" => "1+1"},
               duration: 100
             }
@@ -148,7 +150,7 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 2,
             type: :eval_stop,
-            data: %{run_id: :main, success: true, result: "2", error: nil, duration: 10}
+            data: %{agent_id: "main", success: true, result: "2", error: nil, duration: 10}
           })
         ])
 
@@ -161,7 +163,7 @@ defmodule LegionWeb.TraceReducerTest do
     end
 
     test "successful eval_stop without pending llm is dropped" do
-      result = items([event(%{type: :eval_stop, data: %{run_id: :main, success: true}})])
+      result = items([event(%{type: :eval_stop, data: %{agent_id: "main", success: true}})])
       assert result == []
     end
 
@@ -170,7 +172,7 @@ defmodule LegionWeb.TraceReducerTest do
         items([
           event(%{
             type: :eval_stop,
-            data: %{run_id: :main, success: false, error: "boom", duration: 5}
+            data: %{agent_id: "main", success: false, error: "boom", duration: 5}
           })
         ])
 
@@ -182,7 +184,7 @@ defmodule LegionWeb.TraceReducerTest do
         items([
           event(%{
             type: :eval_stop,
-            data: %{run_id: :main, success: false, error: %{type: :timeout}, duration: 5000}
+            data: %{agent_id: "main", success: false, error: %{type: :timeout}, duration: 5000}
           })
         ])
 
@@ -198,7 +200,7 @@ defmodule LegionWeb.TraceReducerTest do
             seq: 1,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_complete", "code" => "result = 42"},
               duration: 100
             }
@@ -206,13 +208,13 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 2,
             type: :eval_stop,
-            data: %{run_id: :main, success: true, result: "42", error: nil, duration: 10}
+            data: %{agent_id: "main", success: true, result: "42", error: nil, duration: 10}
           }),
           event(%{
             seq: 3,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "return", "result" => "42"},
               duration: 50
             }
@@ -232,7 +234,7 @@ defmodule LegionWeb.TraceReducerTest do
             seq: 1,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_complete", "code" => "x = 1"},
               duration: 100
             }
@@ -240,13 +242,13 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 2,
             type: :eval_stop,
-            data: %{run_id: :main, success: true, result: "1", error: nil, duration: 10}
+            data: %{agent_id: "main", success: true, result: "1", error: nil, duration: 10}
           }),
           event(%{
             seq: 3,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "done"},
               duration: 30
             }
@@ -265,7 +267,7 @@ defmodule LegionWeb.TraceReducerTest do
             seq: 1,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_complete", "code" => "x = 1"},
               duration: 100
             }
@@ -273,12 +275,12 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 2,
             type: :eval_stop,
-            data: %{run_id: :main, success: true, result: "1", error: nil, duration: 10}
+            data: %{agent_id: "main", success: true, result: "1", error: nil, duration: 10}
           }),
           event(%{
             seq: 3,
             type: :message_start,
-            data: %{run_id: :main, message: "new message"}
+            data: %{agent_id: "main", message: "new message"}
           })
         ])
 
@@ -294,7 +296,7 @@ defmodule LegionWeb.TraceReducerTest do
             seq: 1,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_continue", "code" => "x = 1"},
               duration: 100
             }
@@ -302,12 +304,12 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 2,
             type: :message_start,
-            data: %{run_id: :main, message: "between event"}
+            data: %{agent_id: "main", message: "between event"}
           }),
           event(%{
             seq: 3,
             type: :eval_stop,
-            data: %{run_id: :main, success: true, result: "1", error: nil, duration: 10}
+            data: %{agent_id: "main", success: true, result: "1", error: nil, duration: 10}
           })
         ])
 
@@ -321,7 +323,7 @@ defmodule LegionWeb.TraceReducerTest do
             seq: 1,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_continue", "code" => "first"},
               duration: 100
             }
@@ -330,7 +332,7 @@ defmodule LegionWeb.TraceReducerTest do
             seq: 2,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "return", "result" => "done"},
               duration: 50
             }
@@ -352,7 +354,7 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_continue", "code" => "pending"},
               duration: 100
             }
@@ -371,7 +373,7 @@ defmodule LegionWeb.TraceReducerTest do
             seq: 1,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_complete", "code" => "x"},
               duration: 100
             }
@@ -381,7 +383,7 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 2,
             type: :eval_stop,
-            data: %{run_id: :main, success: true, result: "ok", error: nil, duration: 10}
+            data: %{agent_id: "main", success: true, result: "ok", error: nil, duration: 10}
           })
         )
 
@@ -391,15 +393,15 @@ defmodule LegionWeb.TraceReducerTest do
   end
 
   describe "sub-agent events" do
-    test "events with mismatched run_id are grouped as subagent" do
+    test "events with mismatched agent_id are grouped as subagent" do
       result =
         items([
           event(%{
             seq: 1,
             type: :llm_stop,
-            run_id: :main,
+            agent_id: "main",
             data: %{
-              run_id: :sub,
+              agent_id: "sub",
               agent: MyApp.SubAgent,
               object: %{"action" => "return", "result" => "sub result"},
               duration: 50
@@ -417,15 +419,15 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 1,
             type: :message_start,
-            run_id: :main,
-            data: %{run_id: :sub, agent: MyApp.Worker, message: "task"}
+            agent_id: "main",
+            data: %{agent_id: "sub", agent: MyApp.Worker, message: "task"}
           }),
           event(%{
             seq: 2,
             type: :llm_stop,
-            run_id: :main,
+            agent_id: "main",
             data: %{
-              run_id: :sub,
+              agent_id: "sub",
               agent: MyApp.Worker,
               object: %{"action" => "return", "result" => "done"},
               duration: 50
@@ -443,8 +445,8 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 1,
             type: :eval_stop,
-            run_id: :main,
-            data: %{run_id: :sub, agent: MyApp.Sub, success: true}
+            agent_id: "main",
+            data: %{agent_id: "sub", agent: MyApp.Sub, success: true}
           })
         ])
 
@@ -457,8 +459,8 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 1,
             type: :message_start,
-            run_id: :main,
-            data: %{run_id: :sub, agent: nil, message: "hi"}
+            agent_id: "main",
+            data: %{agent_id: "sub", agent: nil, message: "hi"}
           })
         ])
 
@@ -471,18 +473,18 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 1,
             type: :message_start,
-            data: %{run_id: :main, message: "first"}
+            data: %{agent_id: "main", message: "first"}
           }),
           event(%{
             seq: 2,
             type: :message_start,
-            run_id: :main,
-            data: %{run_id: :sub1, agent: MyApp.A, message: "sub"}
+            agent_id: "main",
+            data: %{agent_id: "sub1", agent: MyApp.A, message: "sub"}
           }),
           event(%{
             seq: 3,
             type: :message_start,
-            data: %{run_id: :main, message: "last"}
+            data: %{agent_id: "main", message: "last"}
           })
         ])
 
@@ -499,7 +501,7 @@ defmodule LegionWeb.TraceReducerTest do
             seq: 1,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_continue", "code" => "step1"},
               duration: 100
             }
@@ -507,13 +509,13 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 2,
             type: :eval_stop,
-            data: %{run_id: :main, success: true, result: "r1", error: nil, duration: 10}
+            data: %{agent_id: "main", success: true, result: "r1", error: nil, duration: 10}
           }),
           event(%{
             seq: 3,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_continue", "code" => "step2"},
               duration: 200
             }
@@ -521,13 +523,13 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 4,
             type: :eval_stop,
-            data: %{run_id: :main, success: false, result: nil, error: "fail", duration: 5}
+            data: %{agent_id: "main", success: false, result: nil, error: "fail", duration: 5}
           }),
           event(%{
             seq: 5,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "return", "result" => "final"},
               duration: 50
             }
@@ -547,13 +549,13 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 1,
             type: :message_start,
-            data: %{run_id: :main, message: "do something"}
+            data: %{agent_id: "main", message: "do something"}
           }),
           event(%{
             seq: 2,
             type: :llm_stop,
             data: %{
-              run_id: :main,
+              agent_id: "main",
               object: %{"action" => "eval_and_continue", "code" => "boom()"},
               duration: 100
             }
@@ -561,12 +563,12 @@ defmodule LegionWeb.TraceReducerTest do
           event(%{
             seq: 3,
             type: :eval_stop,
-            data: %{run_id: :main, success: true, result: "ok", error: nil, duration: 10}
+            data: %{agent_id: "main", success: true, result: "ok", error: nil, duration: 10}
           }),
           event(%{
             seq: 4,
             type: :message_exception,
-            data: %{run_id: :main, reason: "crashed"}
+            data: %{agent_id: "main", reason: "crashed"}
           })
         ])
 
