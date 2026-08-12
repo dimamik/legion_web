@@ -4,7 +4,7 @@ defmodule LegionWeb.DashboardLive do
   alias LegionWeb.Components.{AgentDetail, AgentsList}
   alias LegionWeb.{HumanHandler, TraceReducer}
 
-  @page_size 5
+  @page_size 20
 
   def page_size, do: @page_size
 
