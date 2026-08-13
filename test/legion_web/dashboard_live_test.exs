@@ -22,7 +22,7 @@ defmodule LegionWeb.DashboardLiveTest do
   end
 
   defmodule ConfiguredTracker do
-    def list_agents, do: [%{agent_id: "configured", started_at: 1}]
+    def list_agents(_limit), do: [%{agent_id: "configured", started_at: 1}]
     def get_agent(_agent_id), do: nil
     def get_events(_agent_id), do: []
   end
@@ -78,6 +78,7 @@ defmodule LegionWeb.DashboardLiveTest do
       assert socket.assigns.live_transport == "longpoll"
       assert socket.assigns.csp_nonces == %{img: "i", style: "s", script: "sc"}
       assert socket.assigns.agents == []
+      assert socket.assigns.list_limit == DashboardLive.page_size()
       assert socket.assigns.selected_agent_id == nil
       assert socket.assigns.selected_agent == nil
       assert %TraceReducer{} = socket.assigns.trace
@@ -300,6 +301,27 @@ defmodule LegionWeb.DashboardLiveTest do
       socket = mounted_socket(%{show_prompt_modal: true})
       {:noreply, socket} = DashboardLive.handle_event("close_prompt", %{}, socket)
       assert socket.assigns.show_prompt_modal == false
+    end
+  end
+
+  describe "handle_event/3 - pagination" do
+    test "loads one page initially, then extends the loaded list by one page" do
+      page_size = DashboardLive.page_size()
+
+      for index <- 1..(page_size + 1) do
+        agent_id = "agent-#{index}"
+        :ets.insert(:legion_web_agents, {agent_id, agent_record(agent_id, %{started_at: index})})
+      end
+
+      socket = mounted_socket()
+
+      assert length(socket.assigns.agents) == page_size
+      assert socket.assigns.list_limit == page_size
+
+      {:noreply, socket} = DashboardLive.handle_event("load_more", %{}, socket)
+
+      assert length(socket.assigns.agents) == page_size + 1
+      assert socket.assigns.list_limit == page_size * 2
     end
   end
 

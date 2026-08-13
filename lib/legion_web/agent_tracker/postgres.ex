@@ -48,8 +48,6 @@ if Code.ensure_loaded?(Postgrex) do
 
     alias LegionWeb.AgentTracker.{LegionAgent, LegionEvent}
 
-    @max_agents 100
-
     def start_link(opts \\ []) do
       GenServer.start_link(__MODULE__, opts, name: __MODULE__)
     end
@@ -70,8 +68,8 @@ if Code.ensure_loaded?(Postgrex) do
     end
 
     @impl LegionWeb.AgentTracker
-    def list_agents do
-      GenServer.call(__MODULE__, :list_agents)
+    def list_agents(limit) do
+      GenServer.call(__MODULE__, {:list_agents, limit})
     end
 
     @impl LegionWeb.AgentTracker
@@ -85,8 +83,8 @@ if Code.ensure_loaded?(Postgrex) do
     end
 
     @impl true
-    def handle_call(:list_agents, _from, state) do
-      agents = state.store.list(@max_agents) |> Enum.map(&to_record/1)
+    def handle_call({:list_agents, limit}, _from, state) do
+      agents = state.store.list(limit) |> Enum.map(&to_record/1)
       {:reply, agents, state}
     end
 
