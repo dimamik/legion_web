@@ -9,6 +9,7 @@ defmodule LegionWeb.AgentTrackerTest do
     # Clear ETS tables before each test
     :ets.delete_all_objects(:legion_web_agents)
     :ets.delete_all_objects(:legion_web_events)
+    :ets.delete_all_objects(:legion_web_usage)
 
     Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agents")
 
@@ -17,7 +18,7 @@ defmodule LegionWeb.AgentTrackerTest do
 
   test "defines the tracker query behaviour" do
     assert AgentTracker.behaviour_info(:callbacks) |> Enum.sort() ==
-             [get_agent: 1, get_events: 1, list_agents: 1]
+             [get_agent: 1, get_events: 1, get_usage: 1, list_agents: 1]
   end
 
   defp insert_agent(agent_id, attrs \\ %{}) do
@@ -99,6 +100,67 @@ defmodule LegionWeb.AgentTrackerTest do
       :ets.insert(:legion_web_events, {{"agent2", 1}, %{seq: 1}})
 
       assert length(Telemetry.get_events("agent1")) == 1
+    end
+  end
+
+  describe "get_usage/1" do
+    test "returns empty list when no usage" do
+      assert Telemetry.get_usage("no_usage") == []
+    end
+
+    test "appends usage from the agent's own llm_stop events and broadcasts the full list" do
+      insert_agent("used")
+      u1 = %{"input_tokens" => 1, "output_tokens" => 2, "at" => 10}
+      u2 = %{"input_tokens" => 3, "output_tokens" => 4, "at" => 20}
+
+      send(Telemetry, {:event, "used", :llm_stop, %{agent_id: "used", object: %{}, usage: u1}})
+      assert_receive {:usage, "used", [^u1]}, 1000
+
+      send(Telemetry, {:event, "used", :llm_stop, %{agent_id: "used", object: %{}, usage: u2}})
+      assert_receive {:usage, "used", [^u1, ^u2]}, 1000
+
+      assert Telemetry.get_usage("used") == [u1, u2]
+    end
+
+    test "ignores llm_stop events without usage" do
+      insert_agent("no_usage")
+
+      send(Telemetry, {:event, "no_usage", :llm_stop, %{agent_id: "no_usage", error: :boom}})
+
+      refute_receive {:usage, "no_usage", _}, 200
+      assert Telemetry.get_usage("no_usage") == []
+    end
+
+    test "does not attribute a forwarded sub-agent llm_stop to the parent" do
+      insert_agent("parent")
+      insert_agent("child", %{parent_agent_id: "parent"})
+      usage = %{"input_tokens" => 5, "at" => 30}
+
+      Telemetry.handle_telemetry(
+        [:legion, :llm, :request, :stop],
+        %{duration: 100},
+        %{agent_id: "child", object: %{"action" => "return"}, usage: usage},
+        nil
+      )
+
+      assert_receive {:usage, "child", [^usage]}, 1000
+      refute_receive {:usage, "parent", _}, 200
+      assert Telemetry.get_usage("parent") == []
+      assert Telemetry.get_usage("child") == [usage]
+    end
+
+    test "is not capped by the per-agent event limit" do
+      insert_agent("busy")
+
+      for seq <- 1..500 do
+        :ets.insert(:legion_web_events, {{"busy", seq}, %{seq: seq}})
+      end
+
+      usage = %{"input_tokens" => 1, "at" => 1}
+      send(Telemetry, {:event, "busy", :llm_stop, %{agent_id: "busy", object: %{}, usage: usage}})
+
+      assert_receive {:usage, "busy", [^usage]}, 1000
+      assert Telemetry.get_usage("busy") == [usage]
     end
   end
 
