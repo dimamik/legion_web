@@ -59,7 +59,7 @@ defmodule LegionWeb.MixProject do
 
   defp deps do
     [
-      {:legion, path: "../legion"},
+      {:legion, git: "https://github.com/software-mansion-labs/legion.git"},
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 1.0"},
