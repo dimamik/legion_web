@@ -5,9 +5,6 @@ defmodule LegionWeb.Markup do
   Languages are addressed by their `Makeup.Registry` name (`"elixir"`,
   `"lua"`, ...). Any lexer registered with Makeup works; a language with no
   registered lexer degrades to HTML-escaped plaintext rather than raising.
-
-  Lexers are provided by `:makeup_elixir` and `:makeup_syntect` (which
-  covers Lua among ~200 other syntaxes).
   """
 
   @doc """

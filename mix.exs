@@ -67,7 +67,6 @@ defmodule LegionWeb.MixProject do
       {:telemetry, "~> 1.0"},
       {:jason, "~> 1.4"},
       {:makeup, "~> 1.0"},
-      {:makeup_elixir, "~> 1.0"},
       {:makeup_syntect, "~> 0.1"},
       {:earmark, "~> 1.4"},
 

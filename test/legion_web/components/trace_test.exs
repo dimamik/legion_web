@@ -27,7 +27,7 @@ defmodule LegionWeb.Components.TraceTest do
 
     test "highlights elixir when language is elixir" do
       html = render_component(&Trace.render/1, items: [step("def x")], language: "elixir")
-      assert html =~ ~s(<span class="kd">def</span>)
+      assert html =~ ~s(<span class="k">def</span>)
     end
 
     test "renders escaped plaintext when language is nil" do
