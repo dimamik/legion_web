@@ -80,12 +80,6 @@ defmodule LegionWeb.Helpers do
     |> String.slice(0, limit)
   end
 
-  def highlight_elixir(code) when is_binary(code) do
-    code
-    |> Makeup.highlight_inner_html(lexer: Makeup.Lexers.ElixirLexer)
-    |> Phoenix.HTML.raw()
-  end
-
   def agent_topic(agent_id), do: "legion_web:agent:#{inspect(agent_id)}"
 
   def encode_agent_id(agent_id) do

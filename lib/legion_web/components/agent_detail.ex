@@ -11,6 +11,7 @@ defmodule LegionWeb.Components.AgentDetail do
   attr :system_prompt, :string, default: nil
   attr :show_prompt_modal, :boolean, default: false
   attr :agent_config, :map, default: %{}
+  attr :code_language, :string, default: nil
   attr :chat_form, :any, required: true
   attr :prefix, :string, required: true
 
@@ -74,7 +75,7 @@ defmodule LegionWeb.Components.AgentDetail do
       </div>
 
       <%!-- Trace --%>
-      <Trace.render items={@trace_items} />
+      <Trace.render items={@trace_items} language={@code_language} />
 
       <%!-- Chat --%>
       <Chat.render
