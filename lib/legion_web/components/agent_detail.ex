@@ -3,7 +3,7 @@ defmodule LegionWeb.Components.AgentDetail do
 
   use LegionWeb, :html
 
-  alias LegionWeb.Components.{Chat, Trace}
+  alias LegionWeb.Components.{Chat, Trace, Usage}
   alias LegionWeb.Helpers
 
   attr :agent, :map, default: nil
@@ -13,6 +13,8 @@ defmodule LegionWeb.Components.AgentDetail do
   attr :agent_config, :map, default: %{}
   attr :chat_form, :any, required: true
   attr :prefix, :string, required: true
+  attr :usage, :list, default: []
+  attr :show_usage_modal, :boolean, default: false
 
   def render(%{agent: nil} = assigns) do
     ~H"""
@@ -46,8 +48,7 @@ defmodule LegionWeb.Components.AgentDetail do
           <span class="text-xs text-sol-base00">{Helpers.module_name(@agent.agent_module)}</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class={["w-2.5 h-2.5 rounded-full shrink-0", Helpers.status_class(@agent.status)]}>
-          </span>
+          <span class={["w-2.5 h-2.5 rounded-full shrink-0", Helpers.status_class(@agent.status)]}></span>
           <h2 class="text-base font-semibold text-sol-base02 tracking-tight">
             {Helpers.module_name(@agent.agent_module)}
           </h2>
@@ -65,6 +66,14 @@ defmodule LegionWeb.Components.AgentDetail do
             >
               System Prompt
             </button>
+            <button
+              :if={@usage != []}
+              phx-click="show_usage"
+              class="text-sol-violet hover:text-sol-violet/80 transition-colors cursor-pointer"
+            >
+              Usage
+            </button>
+            <Usage.summary usage={@usage} />
             <span :if={duration = Helpers.format_duration(@agent.started_at, @agent.finished_at)}>
               {duration}
             </span>
@@ -82,6 +91,9 @@ defmodule LegionWeb.Components.AgentDetail do
         status={@agent.status}
         form={@chat_form}
       />
+
+      <%!-- Usage Overlay --%>
+      <Usage.panel :if={@show_usage_modal} usage={@usage} />
 
       <%!-- System Prompt Overlay --%>
       <div

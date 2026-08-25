@@ -18,6 +18,8 @@ defmodule LegionWeb.DashboardLive do
 
     {:ok,
      socket
+     |> assign(:usage, [])
+     |> assign(:show_usage_modal, false)
      |> assign(:prefix, session["prefix"])
      |> assign(:live_path, session["live_path"])
      |> assign(:live_transport, session["live_transport"])
@@ -69,8 +71,12 @@ defmodule LegionWeb.DashboardLive do
     system_prompt =
       agent && render_markdown(render_system_prompt(agent.agent_module, agent_config))
 
+    usage = if agent_id, do: agent_tracker.get_usage(agent_id), else: []
+
     {:noreply,
      socket
+     |> assign(:usage, usage)
+     |> assign(:show_usage_modal, false)
      |> assign(:selected_agent_id, agent_id)
      |> assign(:selected_agent, agent)
      |> assign(:trace, trace)
@@ -85,6 +91,8 @@ defmodule LegionWeb.DashboardLive do
 
     {:noreply,
      socket
+     |> assign(:usage, [])
+     |> assign(:show_usage_modal, false)
      |> assign(:selected_agent_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:trace, TraceReducer.new())
@@ -106,6 +114,15 @@ defmodule LegionWeb.DashboardLive do
       |> maybe_update_selected_agent(agent_id, record)
 
     {:noreply, socket}
+  end
+
+  # Usage for the selected agent
+  def handle_info({:usage, agent_id, usage}, socket) do
+    if socket.assigns.selected_agent_id == agent_id do
+      {:noreply, assign(socket, :usage, usage)}
+    else
+      {:noreply, socket}
+    end
   end
 
   # New event for selected agent
@@ -152,6 +169,14 @@ defmodule LegionWeb.DashboardLive do
     {:noreply, assign(socket, :show_prompt_modal, false)}
   end
 
+  def handle_event("show_usage", _params, socket) do
+    {:noreply, assign(socket, :show_usage_modal, true)}
+  end
+
+  def handle_event("close_usage", _params, socket) do
+    {:noreply, assign(socket, :show_usage_modal, false)}
+  end
+
   def handle_event("load_more", _params, socket) do
     list_limit = socket.assigns.list_limit + @page_size
 
@@ -179,6 +204,8 @@ defmodule LegionWeb.DashboardLive do
         agent_config={@agent_config}
         chat_form={@chat_form}
         prefix={@prefix}
+        usage={@usage}
+        show_usage_modal={@show_usage_modal}
       />
     </div>
     """

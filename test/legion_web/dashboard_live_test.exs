@@ -25,11 +25,13 @@ defmodule LegionWeb.DashboardLiveTest do
     def list_agents(_limit), do: [%{agent_id: "configured", started_at: 1}]
     def get_agent(_agent_id), do: nil
     def get_events(_agent_id), do: []
+    def get_usage(_agent_id), do: []
   end
 
   setup do
     :ets.delete_all_objects(:legion_web_agents)
     :ets.delete_all_objects(:legion_web_events)
+    :ets.delete_all_objects(:legion_web_usage)
     Process.delete(:"$vault")
     Application.delete_env(:legion, :config)
     :ok
@@ -158,6 +160,22 @@ defmodule LegionWeb.DashboardLiveTest do
       assert socket.assigns.system_prompt != nil
     end
 
+    test "loads the agent's usage and closes the usage modal" do
+      agent_id = "spender"
+      :ets.insert(:legion_web_agents, {agent_id, agent_record(agent_id)})
+      usage = %{"input_tokens" => 10, "output_tokens" => 2, "at" => 1}
+      :ets.insert(:legion_web_usage, {{agent_id, 1}, usage})
+
+      encoded = LegionWeb.Helpers.encode_agent_id(agent_id)
+      socket = mounted_socket(%{show_usage_modal: true})
+
+      {:noreply, socket} =
+        DashboardLive.handle_params(%{"agent_id" => encoded}, "/legion", socket)
+
+      assert socket.assigns.usage == [usage]
+      assert socket.assigns.show_usage_modal == false
+    end
+
     test "populates Vault with every tool's config before rendering the prompt" do
       agent_id = "vault_demo"
       :ets.insert(:legion_web_agents, {agent_id, agent_record(agent_id)})
@@ -271,6 +289,26 @@ defmodule LegionWeb.DashboardLiveTest do
     end
   end
 
+  describe "handle_info/2 - usage" do
+    test ":usage for the selected agent replaces the usage list" do
+      socket = mounted_socket(%{selected_agent_id: "agent1", usage: []})
+      usage = [%{"input_tokens" => 1, "at" => 1}]
+
+      {:noreply, socket} = DashboardLive.handle_info({:usage, "agent1", usage}, socket)
+
+      assert socket.assigns.usage == usage
+    end
+
+    test ":usage for another agent is ignored" do
+      socket = mounted_socket(%{selected_agent_id: "agent1", usage: []})
+
+      {:noreply, socket} =
+        DashboardLive.handle_info({:usage, "agent2", [%{"input_tokens" => 1}]}, socket)
+
+      assert socket.assigns.usage == []
+    end
+  end
+
   describe "handle_info/2 - human tool messages" do
     test ":human_request sets :human_question" do
       {:noreply, socket} =
@@ -301,6 +339,19 @@ defmodule LegionWeb.DashboardLiveTest do
       socket = mounted_socket(%{show_prompt_modal: true})
       {:noreply, socket} = DashboardLive.handle_event("close_prompt", %{}, socket)
       assert socket.assigns.show_prompt_modal == false
+    end
+  end
+
+  describe "handle_event/3 - usage modal" do
+    test "show_usage opens the modal" do
+      {:noreply, socket} = DashboardLive.handle_event("show_usage", %{}, mounted_socket())
+      assert socket.assigns.show_usage_modal == true
+    end
+
+    test "close_usage closes the modal" do
+      socket = mounted_socket(%{show_usage_modal: true})
+      {:noreply, socket} = DashboardLive.handle_event("close_usage", %{}, socket)
+      assert socket.assigns.show_usage_modal == false
     end
   end
 
