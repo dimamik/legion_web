@@ -112,7 +112,7 @@ defmodule LegionWeb.AgentTracker.PostgresTest do
 
     pid =
       spawn(fn ->
-        {:ok, _} = Registry.register(Legion.AgentRegistry, "live", %{})
+        :yes = Legion.AgentIndex.register_name("live", self())
         send(parent, :live_agent_registered)
 
         receive do
