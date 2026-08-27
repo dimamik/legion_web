@@ -47,8 +47,7 @@ defmodule LegionWeb.Components.AgentDetail do
           <span class="text-xs text-sol-base00">{Helpers.module_name(@agent.agent_module)}</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class={["w-2.5 h-2.5 rounded-full shrink-0", Helpers.status_class(@agent.status)]}>
-          </span>
+          <span class={["w-2.5 h-2.5 rounded-full shrink-0", Helpers.status_class(@agent.status)]}></span>
           <h2 class="text-base font-semibold text-sol-base02 tracking-tight">
             {Helpers.module_name(@agent.agent_module)}
           </h2>
