@@ -11,6 +11,7 @@ defmodule LegionWeb.Components.AgentDetail do
   attr :system_prompt, :string, default: nil
   attr :show_prompt_modal, :boolean, default: false
   attr :agent_config, :map, default: %{}
+  attr :code_language, :string, default: nil
   attr :chat_form, :any, required: true
   attr :prefix, :string, required: true
 
@@ -46,8 +47,7 @@ defmodule LegionWeb.Components.AgentDetail do
           <span class="text-xs text-sol-base00">{Helpers.module_name(@agent.agent_module)}</span>
         </div>
         <div class="flex items-center gap-3">
-          <span class={["w-2.5 h-2.5 rounded-full shrink-0", Helpers.status_class(@agent.status)]}>
-          </span>
+          <span class={["w-2.5 h-2.5 rounded-full shrink-0", Helpers.status_class(@agent.status)]}></span>
           <h2 class="text-base font-semibold text-sol-base02 tracking-tight">
             {Helpers.module_name(@agent.agent_module)}
           </h2>
@@ -74,7 +74,7 @@ defmodule LegionWeb.Components.AgentDetail do
       </div>
 
       <%!-- Trace --%>
-      <Trace.render items={@trace_items} />
+      <Trace.render items={@trace_items} language={@code_language} />
 
       <%!-- Chat --%>
       <Chat.render

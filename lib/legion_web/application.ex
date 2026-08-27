@@ -5,6 +5,8 @@ defmodule LegionWeb.Application do
 
   @impl true
   def start(_type, _args) do
+    register_elixir_lexer()
+
     {agent_tracker, agent_tracker_opts} = agent_tracker_config()
 
     children = [
@@ -33,4 +35,12 @@ defmodule LegionWeb.Application do
   defp normalize_agent_tracker({agent_tracker, opts})
        when is_atom(agent_tracker) and is_list(opts),
        do: {agent_tracker, opts}
+
+  defp register_elixir_lexer do
+    Makeup.Registry.register_lexer(MakeupSyntect.Lexer,
+      options: [language: "Elixir"],
+      names: ["elixir"],
+      extensions: ["ex", "exs"]
+    )
+  end
 end

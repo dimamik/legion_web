@@ -161,19 +161,6 @@ defmodule LegionWeb.HelpersTest do
     end
   end
 
-  describe "highlight_elixir/1" do
-    test "returns Phoenix.HTML.safe tuple" do
-      result = Helpers.highlight_elixir("def hello, do: :world")
-      assert {:safe, _} = result
-    end
-
-    test "contains highlighted markup" do
-      {:safe, html} = Helpers.highlight_elixir("defmodule Foo do end")
-      html_string = IO.iodata_to_binary(html)
-      assert html_string =~ "<span"
-    end
-  end
-
   describe "encode_agent_id/1 and decode_agent_id/1" do
     test "roundtrip with string" do
       agent_id = "some_agent"
