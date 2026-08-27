@@ -152,8 +152,9 @@ defmodule LegionWeb.AgentTracker.PostgresTest do
     assert Postgres.get_usage("missing") == []
   end
 
-  test "notification broadcasts the agent's current usage" do
+  test "notification broadcasts the agent's current usage on the agent's topic" do
     start_supervised!({Postgres, store: Store, notifications: Notifications})
+    Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:\"new\"")
     usage = [%{"input_tokens" => 1, "at" => 1}]
 
     Store.put(%Payload{

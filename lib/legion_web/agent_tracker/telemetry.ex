@@ -10,6 +10,9 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   Attaches to Legion and dashboard telemetry events on startup. Broadcasts
   changes via `LegionWeb.PubSub` so LiveView subscribers receive real-time
   updates.
+
+  Usage is recorded only while `config :legion, :track_usage` is enabled (the
+  default), matching what Legion itself persists.
   """
 
   use GenServer
@@ -123,7 +126,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     end
 
     broadcast_event(agent_id, event)
-    track_usage(agent_id, type, data, seq)
+    record_usage(agent_id, type, data, seq)
     {:noreply, %{state | seq: seq}}
   end
 
@@ -294,13 +297,20 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   # Usage is recorded only for the agent's own LLM requests. A sub-agent's
   # llm_stop is also forwarded to its parent, but that copy still carries the
   # sub-agent's agent_id in its data and is skipped here.
-  defp track_usage(agent_id, :llm_stop, %{agent_id: agent_id, usage: usage}, seq)
+  defp record_usage(agent_id, :llm_stop, %{agent_id: agent_id, usage: usage}, seq)
        when is_map(usage) do
-    :ets.insert(@usage_table, {{agent_id, seq}, usage})
-    broadcast_usage(agent_id, get_usage(agent_id))
+    if track_usage?() do
+      :ets.insert(@usage_table, {{agent_id, seq}, usage})
+      broadcast_usage(agent_id, get_usage(agent_id))
+    end
+
+    :ok
   end
 
-  defp track_usage(_agent_id, _type, _data, _seq), do: :ok
+  defp record_usage(_agent_id, _type, _data, _seq), do: :ok
+
+  # Same key Legion reads when an agent starts.
+  defp track_usage?, do: Application.get_env(:legion, :track_usage, true)
 
   defp count_events(agent_id) do
     :ets.select_count(@events_table, [{{{agent_id, :_}, :_}, [], [true]}])
@@ -332,7 +342,11 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   end
 
   defp broadcast_usage(agent_id, usage) do
-    Phoenix.PubSub.broadcast(LegionWeb.PubSub, "legion_web:agents", {:usage, agent_id, usage})
+    Phoenix.PubSub.broadcast(
+      LegionWeb.PubSub,
+      "legion_web:agent:#{inspect(agent_id)}",
+      {:usage, agent_id, usage}
+    )
   end
 
   defp broadcast_event(agent_id, event) do

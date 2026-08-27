@@ -1,4 +1,4 @@
-defmodule LegionWeb.Usage do
+defmodule LegionWeb.UsageAggregator do
   @moduledoc """
   Aggregates and formats the per-request LLM usage entries returned by
   `LegionWeb.AgentTracker.get_usage/1`.
@@ -47,14 +47,23 @@ defmodule LegionWeb.Usage do
   @doc ~S|Abbreviates a token count: `842`, `12.3k`, `1.25M`.|
   @spec format_tokens(integer()) :: String.t()
   def format_tokens(n) when is_integer(n) and n < 1_000, do: Integer.to_string(n)
-  def format_tokens(n) when is_integer(n) and n < 1_000_000, do: "#{Float.round(n / 1_000, 1)}k"
+
+  def format_tokens(n) when is_integer(n) and n < 1_000_000 do
+    case Float.round(n / 1_000, 1) do
+      1000.0 -> format_tokens(1_000_000)
+      v -> "#{v}k"
+    end
+  end
+
   def format_tokens(n) when is_integer(n), do: "#{Float.round(n / 1_000_000, 2)}M"
 
   @doc "Formats a dollar cost to three decimals, or `nil` when unknown."
   @spec format_cost(number() | nil) :: String.t() | nil
   def format_cost(nil), do: nil
-  def format_cost(cost) when cost < 0.001, do: "<$0.001"
-  def format_cost(cost), do: "$#{:erlang.float_to_binary(cost / 1, decimals: 3)}"
+  def format_cost(cost) when is_number(cost) and cost < 0.001, do: "<$0.001"
+
+  def format_cost(cost) when is_number(cost),
+    do: "$#{:erlang.float_to_binary(cost / 1, decimals: 3)}"
 
   defp add_cost(acc, cost) when is_number(cost), do: (acc || 0) + cost
   defp add_cost(acc, _), do: acc

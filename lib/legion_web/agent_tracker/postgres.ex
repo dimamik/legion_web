@@ -134,11 +134,7 @@ if Code.ensure_loaded?(Postgrex) do
             {record.status, agent_id, record}
           )
 
-          Phoenix.PubSub.broadcast(
-            LegionWeb.PubSub,
-            "legion_web:agents",
-            {:usage, agent_id, to_usage(payload)}
-          )
+          broadcast_usage(agent_id, to_usage(payload))
 
           case Map.fetch(state.event_cursors, agent_id) do
             {:ok, cursor} ->
@@ -255,6 +251,14 @@ if Code.ensure_loaded?(Postgrex) do
 
     defp event_data(:eval_result, content), do: %{success: true, result: content}
     defp event_data(:error, content), do: %{success: false, error: content}
+
+    defp broadcast_usage(agent_id, usage) do
+      Phoenix.PubSub.broadcast(
+        LegionWeb.PubSub,
+        "legion_web:agent:#{inspect(agent_id)}",
+        {:usage, agent_id, usage}
+      )
+    end
 
     defp broadcast_event(agent_id, event) do
       Phoenix.PubSub.broadcast(

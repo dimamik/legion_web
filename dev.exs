@@ -122,7 +122,7 @@ defmodule ProductScout.Agents.WebResearcher do
   use Legion.Agent
 
   def tools, do: [ProductScout.Tools.WebSearch]
-  def config, do: %{max_iterations: 100, sandbox_timeout: :infinity}
+  def config, do: %{max_iterations: 100, sandbox: Legion.Sandbox.Elixir, sandbox_timeout: :infinity}
 end
 
 defmodule ProductScout.Agents.ProductOracle do
@@ -138,7 +138,7 @@ defmodule ProductScout.Agents.ProductOracle do
   """
   use Legion.Agent
 
-  def config, do: %{max_iterations: 100, sandbox_timeout: :infinity}
+  def config, do: %{max_iterations: 100, sandbox: Legion.Sandbox.Elixir, sandbox_timeout: :infinity}
 end
 
 defmodule ProductScout.Agents.Coordinator do
@@ -178,7 +178,7 @@ defmodule ProductScout.Agents.Coordinator do
   def tool_config(Legion.Tools.HumanTool), do: [handler: LegionWeb.HumanHandler]
   def tool_config(_), do: []
 
-  def config, do: %{max_iterations: 100, sandbox_timeout: :infinity}
+  def config, do: %{max_iterations: 100, sandbox: Legion.Sandbox.Elixir, sandbox_timeout: :infinity}
 end
 
 # --- Demo spawner ---

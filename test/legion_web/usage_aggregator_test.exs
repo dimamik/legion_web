@@ -1,7 +1,7 @@
-defmodule LegionWeb.UsageTest do
+defmodule LegionWeb.UsageAggregatorTest do
   use ExUnit.Case, async: true
 
-  alias LegionWeb.Usage
+  alias LegionWeb.UsageAggregator, as: Usage
 
   describe "totals/1" do
     test "sums token counters and cost across entries" do

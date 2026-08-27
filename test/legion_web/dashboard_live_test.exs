@@ -307,6 +307,16 @@ defmodule LegionWeb.DashboardLiveTest do
 
       assert socket.assigns.usage == []
     end
+
+    test "a shorter :usage snapshot does not rewind the list" do
+      fresh = [%{"at" => 1}, %{"at" => 2}, %{"at" => 3}]
+      stale = [%{"at" => 1}, %{"at" => 2}]
+      socket = mounted_socket(%{selected_agent_id: "agent1", usage: fresh})
+
+      {:noreply, socket} = DashboardLive.handle_info({:usage, "agent1", stale}, socket)
+
+      assert socket.assigns.usage == fresh
+    end
   end
 
   describe "handle_info/2 - human tool messages" do

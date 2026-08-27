@@ -77,6 +77,7 @@ defmodule LegionWeb.DashboardLive do
      socket
      |> assign(:usage, usage)
      |> assign(:show_usage_modal, false)
+     |> assign(:show_prompt_modal, false)
      |> assign(:selected_agent_id, agent_id)
      |> assign(:selected_agent, agent)
      |> assign(:trace, trace)
@@ -93,6 +94,7 @@ defmodule LegionWeb.DashboardLive do
      socket
      |> assign(:usage, [])
      |> assign(:show_usage_modal, false)
+     |> assign(:show_prompt_modal, false)
      |> assign(:selected_agent_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:trace, TraceReducer.new())
@@ -116,9 +118,13 @@ defmodule LegionWeb.DashboardLive do
     {:noreply, socket}
   end
 
-  # Usage for the selected agent
+  # Usage for the selected agent. Snapshots are append-only, so one shorter
+  # than what we hold was broadcast before handle_params refetched and is
+  # stale; dropping it keeps the panel from rewinding.
   def handle_info({:usage, agent_id, usage}, socket) do
-    if socket.assigns.selected_agent_id == agent_id do
+    %{selected_agent_id: selected, usage: current} = socket.assigns
+
+    if agent_id == selected and length(usage) >= length(current) do
       {:noreply, assign(socket, :usage, usage)}
     else
       {:noreply, socket}

@@ -3,7 +3,7 @@ defmodule LegionWeb.Components.Usage do
 
   use LegionWeb, :html
 
-  alias LegionWeb.Usage
+  alias LegionWeb.UsageAggregator, as: Usage
 
   attr :usage, :list, required: true
 
@@ -33,15 +33,7 @@ defmodule LegionWeb.Components.Usage do
 
   @doc "Overlay with totals and one row per LLM request."
   def panel(assigns) do
-    totals = Usage.totals(assigns.usage)
-
-    max_tokens =
-      assigns.usage
-      |> Enum.map(&(Usage.tokens(&1, "input_tokens") + Usage.tokens(&1, "output_tokens")))
-      |> Enum.max(fn -> 1 end)
-      |> max(1)
-
-    assigns = assigns |> assign(:totals, totals) |> assign(:max_tokens, max_tokens)
+    assigns = assign(assigns, :totals, Usage.totals(assigns.usage))
 
     ~H"""
     <div
@@ -77,7 +69,6 @@ defmodule LegionWeb.Components.Usage do
               <th class="text-right font-medium py-1">Cached</th>
               <th class="text-right font-medium py-1">Reason</th>
               <th class="text-right font-medium py-1">Cost</th>
-              <th class="w-1/3 py-1"></th>
             </tr>
           </thead>
           <tbody>
@@ -93,29 +84,9 @@ defmodule LegionWeb.Components.Usage do
               <td class="py-1.5 text-right text-sol-violet">
                 {Usage.format_cost(entry["total_cost"]) || "—"}
               </td>
-              <td class="py-1.5 pl-3">
-                <div class="flex h-2 rounded overflow-hidden bg-sol-base2">
-                  <div
-                    class="bg-sol-blue/60"
-                    style={"width: #{pct(Usage.tokens(entry, "input_tokens"), @max_tokens)}%"}
-                  >
-                  </div>
-                  <div
-                    class="bg-sol-green/60"
-                    style={"width: #{pct(Usage.tokens(entry, "output_tokens"), @max_tokens)}%"}
-                  >
-                  </div>
-                </div>
-              </td>
             </tr>
           </tbody>
         </table>
-        <p class="mt-3 text-[10px] text-sol-base1">
-          <span class="inline-block w-2 h-2 rounded-sm bg-sol-blue/60 align-middle"></span>
-          input
-          <span class="inline-block w-2 h-2 rounded-sm bg-sol-green/60 align-middle ml-3"></span>
-          output
-        </p>
       </div>
     </div>
     """
@@ -144,8 +115,6 @@ defmodule LegionWeb.Components.Usage do
     </div>
     """
   end
-
-  defp pct(n, max), do: Float.round(n / max * 100, 1)
 
   defp format_ts(ms) when is_integer(ms) do
     ms |> DateTime.from_unix!(:millisecond) |> Calendar.strftime("%H:%M:%S")
