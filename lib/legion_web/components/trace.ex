@@ -114,7 +114,7 @@ defmodule LegionWeb.Components.Trace do
       <span class={if @data.is_timeout, do: "text-sol-orange", else: "text-sol-red"}>
         {if @data.is_timeout, do: "\u23F1", else: "\u2717"}
       </span>
-      <div class="flex-1">
+      <div class="flex-1 min-w-0">
         <pre class={[
           "p-3 rounded-lg overflow-x-auto whitespace-pre-wrap text-xs",
           if(@data.is_timeout,
@@ -148,7 +148,7 @@ defmodule LegionWeb.Components.Trace do
       <% @data.error -> %>
         <span class="text-sol-red/70 italic">{format_llm_error(@data.error)}</span>
       <% has_result?(@data.result) -> %>
-        <div class="flex-1 p-3 bg-sol-green/8 border border-sol-green/20 rounded-lg">
+        <div class="flex-1 min-w-0 p-3 bg-sol-green/8 border border-sol-green/20 rounded-lg">
           <div class="text-black prose prose-sm max-w-none">
             {render_markdown(extract_response(@data.result))}
           </div>
@@ -164,7 +164,7 @@ defmodule LegionWeb.Components.Trace do
 
   defp render_step_body(assigns) do
     ~H"""
-    <div class="flex-1">
+    <div class="flex-1 min-w-0">
       <%= if @human_question do %>
         <div class="flex gap-2 items-center">
           <span class="text-sol-orange font-semibold">?</span>
