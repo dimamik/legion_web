@@ -98,7 +98,7 @@ defmodule LegionWeb.Components.AgentDetail do
               :for={{key, val} <- @agent_config}
               class="text-[10px] px-2 py-0.5 rounded-full bg-sol-base2 text-sol-base00 whitespace-nowrap"
             >
-              {key}: {val}
+              {key}: {format_config_value(val)}
             </span>
           </div>
           <button
@@ -115,6 +115,10 @@ defmodule LegionWeb.Components.AgentDetail do
     </div>
     """
   end
+
+  defp format_config_value({provider, model, _options}), do: "#{provider}/#{model}"
+  defp format_config_value({provider, model}), do: "#{provider}/#{model}"
+  defp format_config_value(value), do: value
 
   defp status_badge_class(:running), do: "bg-sol-green/15 text-sol-green"
   defp status_badge_class(:idle), do: "bg-sol-blue/15 text-sol-blue"
