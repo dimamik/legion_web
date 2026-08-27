@@ -4,6 +4,7 @@
 
 ### Changes
 
+- Add LLM usage tracking: `LegionWeb.AgentTracker` gains a `get_usage/1` callback, implemented by the telemetry and Postgres trackers, and the agent header shows input / output tokens and cost, with a `Usage` overlay listing totals and every request
 - Add the configurable `LegionWeb.AgentTracker` interface, with telemetry-based tracking as the default
 - Add `LegionWeb.AgentTracker.Postgres` for loading persisted agents and conversation events from a PostgreSQL-backed `Legion.Store`, with live updates from database notifications
 - Align dashboard records, routes, PubSub messages, and human-tool integration with Legion's `agent_id` and `parent_agent_id` terminology

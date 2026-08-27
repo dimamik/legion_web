@@ -134,6 +134,42 @@ defmodule LegionWeb.AgentTracker.PostgresTest do
     assert %{pid: ^pid, status: :running} = Postgres.get_agent("live")
   end
 
+  test "reads usage through the GenServer" do
+    usage = [%{"input_tokens" => 1, "output_tokens" => 2, "at" => 1}]
+
+    Store.put(%Payload{
+      agent_id: "usage",
+      agent_module: TestAgent,
+      status: :idle,
+      started_at: ~N[2026-07-27 12:00:00],
+      usage: usage
+    })
+
+    assert {:ok, _pid} = Postgres.start_link(store: Store, notifications: Notifications)
+
+    assert Postgres.get_usage("usage") == usage
+    assert Postgres.get_usage("new") == []
+    assert Postgres.get_usage("missing") == []
+  end
+
+  test "notification broadcasts the agent's current usage on the agent's topic" do
+    start_supervised!({Postgres, store: Store, notifications: Notifications})
+    Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:\"new\"")
+    usage = [%{"input_tokens" => 1, "at" => 1}]
+
+    Store.put(%Payload{
+      agent_id: "new",
+      agent_module: TestAgent,
+      status: :idle,
+      started_at: ~N[2026-07-27 12:00:00],
+      usage: usage
+    })
+
+    send(Postgres, {:notification, self(), make_ref(), "test_agents", "new"})
+
+    assert_receive {:usage, "new", ^usage}
+  end
+
   test "notification broadcasts the agent's derived current status" do
     start_supervised!({Postgres, store: Store, notifications: Notifications})
 

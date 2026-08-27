@@ -75,6 +75,7 @@ defmodule LegionWeb.AgentTracker do
   @type status :: :running | :idle | :waiting_for_human | :done | :error | :dead
   @type agent :: LegionAgent.t()
   @type event :: LegionEvent.t()
+  @type usage :: map()
 
   @doc "Lists up to `limit` tracked agents, newest first."
   @callback list_agents(pos_integer()) :: [agent()]
@@ -84,4 +85,13 @@ defmodule LegionWeb.AgentTracker do
 
   @doc "Returns an agent's events in chronological order."
   @callback get_events(agent_id()) :: [event()]
+
+  @doc """
+  Returns an agent's LLM usage entries in request order.
+
+  Each entry is the string-keyed usage map Legion records for one LLM request,
+  including its `"at"` timestamp in milliseconds. Only the agent's own requests
+  are included; a sub-agent's usage is tracked under the sub-agent.
+  """
+  @callback get_usage(agent_id()) :: [usage()]
 end

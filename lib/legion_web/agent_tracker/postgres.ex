@@ -38,8 +38,11 @@ if Code.ensure_loaded?(Postgrex) do
     from the stored conversation.
 
     PostgreSQL notifications reload the affected conversation and broadcast its
-    current status. Historical events are loaded when an agent is opened; later
-    notifications broadcast only newly appended events.
+    current status and usage. Historical events are loaded when an agent is
+    opened; later notifications broadcast only newly appended events.
+
+    Usage comes from the store's `usage` column, which Legion appends to at the
+    end of each turn, so usage updates arrive per turn rather than per request.
     """
 
     use GenServer
@@ -82,6 +85,11 @@ if Code.ensure_loaded?(Postgrex) do
       GenServer.call(__MODULE__, {:get_events, agent_id})
     end
 
+    @impl LegionWeb.AgentTracker
+    def get_usage(agent_id) do
+      GenServer.call(__MODULE__, {:get_usage, agent_id})
+    end
+
     @impl true
     def handle_call({:list_agents, limit}, _from, state) do
       agents = state.store.list(limit) |> Enum.map(&to_record/1)
@@ -103,6 +111,16 @@ if Code.ensure_loaded?(Postgrex) do
       {:reply, events, put_in(state.event_cursors[agent_id], length(events))}
     end
 
+    def handle_call({:get_usage, agent_id}, _from, state) do
+      usage =
+        case state.store.get(agent_id) do
+          {:ok, payload} -> to_usage(payload)
+          :error -> []
+        end
+
+      {:reply, usage, state}
+    end
+
     @impl true
     def handle_info({:notification, _pid, _ref, _channel, agent_id}, state) do
       case state.store.get(agent_id) do
@@ -115,6 +133,8 @@ if Code.ensure_loaded?(Postgrex) do
             "legion_web:agents",
             {record.status, agent_id, record}
           )
+
+          broadcast_usage(agent_id, to_usage(payload))
 
           case Map.fetch(state.event_cursors, agent_id) do
             {:ok, cursor} ->
@@ -194,6 +214,9 @@ if Code.ensure_loaded?(Postgrex) do
 
     defp to_events(_payload), do: []
 
+    defp to_usage(%{usage: usage}) when is_list(usage), do: usage
+    defp to_usage(_payload), do: []
+
     defp to_event(message, seq, agent_id) do
       %LegionEvent{
         seq: seq,
@@ -228,6 +251,14 @@ if Code.ensure_loaded?(Postgrex) do
 
     defp event_data(:eval_result, content), do: %{success: true, result: content}
     defp event_data(:error, content), do: %{success: false, error: content}
+
+    defp broadcast_usage(agent_id, usage) do
+      Phoenix.PubSub.broadcast(
+        LegionWeb.PubSub,
+        "legion_web:agent:#{inspect(agent_id)}",
+        {:usage, agent_id, usage}
+      )
+    end
 
     defp broadcast_event(agent_id, event) do
       Phoenix.PubSub.broadcast(

@@ -2,13 +2,17 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   @moduledoc """
   Tracks Legion agent invocations and their telemetry events.
 
-  Maintains two ETS tables:
+  Maintains three ETS tables:
   - `:legion_web_agents` — one record per tracked agent, keyed by agent_id
   - `:legion_web_events` — ordered event log per agent, keyed by {agent_id, seq}
+  - `:legion_web_usage` — ordered LLM usage entries per agent, keyed by {agent_id, seq}
 
   Attaches to Legion and dashboard telemetry events on startup. Broadcasts
   changes via `LegionWeb.PubSub` so LiveView subscribers receive real-time
   updates.
+
+  Usage is recorded only while `config :legion, :track_usage` is enabled (the
+  default), matching what Legion itself persists.
   """
 
   use GenServer
@@ -19,6 +23,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
 
   @agents_table :legion_web_agents
   @events_table :legion_web_events
+  @usage_table :legion_web_usage
   @max_agents 100
   @max_events_per_agent 500
 
@@ -53,9 +58,19 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   end
 
   @impl true
+  def get_usage(agent_id) do
+    :ets.select(@usage_table, [
+      {{{agent_id, :"$1"}, :"$2"}, [], [{{:"$1", :"$2"}}]}
+    ])
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.map(&elem(&1, 1))
+  end
+
+  @impl true
   def init(_opts) do
     :ets.new(@agents_table, [:named_table, :public, :set])
     :ets.new(@events_table, [:named_table, :public, :ordered_set])
+    :ets.new(@usage_table, [:named_table, :public, :ordered_set])
 
     attach_telemetry_handlers()
 
@@ -111,6 +126,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     end
 
     broadcast_event(agent_id, event)
+    record_usage(agent_id, type, data, seq)
     {:noreply, %{state | seq: seq}}
   end
 
@@ -278,6 +294,24 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     end
   end
 
+  # Usage is recorded only for the agent's own LLM requests. A sub-agent's
+  # llm_stop is also forwarded to its parent, but that copy still carries the
+  # sub-agent's agent_id in its data and is skipped here.
+  defp record_usage(agent_id, :llm_stop, %{agent_id: agent_id, usage: usage}, seq)
+       when is_map(usage) do
+    if track_usage?() do
+      :ets.insert(@usage_table, {{agent_id, seq}, usage})
+      broadcast_usage(agent_id, get_usage(agent_id))
+    end
+
+    :ok
+  end
+
+  defp record_usage(_agent_id, _type, _data, _seq), do: :ok
+
+  # Same key Legion reads when an agent starts.
+  defp track_usage?, do: Application.get_env(:legion, :track_usage, true)
+
   defp count_events(agent_id) do
     :ets.select_count(@events_table, [{{{agent_id, :_}, :_}, [], [true]}])
   end
@@ -300,10 +334,19 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   defp delete_agent(agent_id) do
     :ets.delete(@agents_table, agent_id)
     :ets.select_delete(@events_table, [{{{agent_id, :_}, :_}, [], [true]}])
+    :ets.select_delete(@usage_table, [{{{agent_id, :_}, :_}, [], [true]}])
   end
 
   defp broadcast_agent_update(agent_id, event, record) do
     Phoenix.PubSub.broadcast(LegionWeb.PubSub, "legion_web:agents", {event, agent_id, record})
+  end
+
+  defp broadcast_usage(agent_id, usage) do
+    Phoenix.PubSub.broadcast(
+      LegionWeb.PubSub,
+      "legion_web:agent:#{inspect(agent_id)}",
+      {:usage, agent_id, usage}
+    )
   end
 
   defp broadcast_event(agent_id, event) do
