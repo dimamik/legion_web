@@ -2,7 +2,7 @@ defmodule LegionWeb.DashboardLive do
   use LegionWeb, :live_view
 
   alias LegionWeb.Components.{AgentDetail, AgentsList}
-  alias LegionWeb.{HumanHandler, TraceReducer}
+  alias LegionWeb.{HumanHandler, Markup, TraceReducer}
 
   @page_size 20
 
@@ -33,6 +33,7 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:trace_items, [])
      |> assign(:system_prompt, nil)
      |> assign(:agent_config, %{})
+     |> assign(:code_language, nil)
      |> assign(:show_prompt_modal, false)
      |> assign(:chat_form, to_form(%{"text" => ""}, as: :chat))}
   end
@@ -69,7 +70,9 @@ defmodule LegionWeb.DashboardLive do
       end
 
     system_prompt =
-      agent && render_markdown(render_system_prompt(agent.agent_module, agent_config))
+      agent && Markup.markdown(render_system_prompt(agent.agent_module, agent_config))
+
+    code_language = agent && sandbox_language(agent_config)
 
     usage = if agent_id, do: agent_tracker.get_usage(agent_id), else: []
 
@@ -84,6 +87,7 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:trace_items, TraceReducer.items(trace))
      |> assign(:system_prompt, system_prompt)
      |> assign(:agent_config, agent_config)
+     |> assign(:code_language, code_language)
      |> assign(:chat_form, to_form(%{"text" => ""}, as: :chat))}
   end
 
@@ -100,7 +104,8 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:trace, TraceReducer.new())
      |> assign(:trace_items, [])
      |> assign(:system_prompt, nil)
-     |> assign(:agent_config, %{})}
+     |> assign(:agent_config, %{})
+     |> assign(:code_language, nil)}
   end
 
   # Agent list updates
@@ -208,6 +213,7 @@ defmodule LegionWeb.DashboardLive do
         system_prompt={@system_prompt}
         show_prompt_modal={@show_prompt_modal}
         agent_config={@agent_config}
+        code_language={@code_language}
         chat_form={@chat_form}
         prefix={@prefix}
         usage={@usage}
@@ -256,32 +262,13 @@ defmodule LegionWeb.DashboardLive do
     Legion.AgentPrompt.system_prompt(agent_module, config)
   end
 
-  defp render_markdown(text) do
-    text
-    |> Earmark.as_html!(code_class_prefix: "language-")
-    |> highlight_code_blocks()
-    |> Phoenix.HTML.raw()
-  end
-
-  @code_block_re ~r/<code class="elixir language-elixir">(.*?)<\/code>/s
-  defp highlight_code_blocks(html) do
-    Regex.replace(@code_block_re, html, fn _match, code ->
-      highlighted =
-        code
-        |> unescape_html()
-        |> Makeup.highlight_inner_html(lexer: Makeup.Lexers.ElixirLexer)
-
-      ~s(<code class="language-elixir highlight">#{highlighted}</code>)
-    end)
-  end
-
-  defp unescape_html(html) do
-    html
-    |> String.replace("&lt;", "<")
-    |> String.replace("&gt;", ">")
-    |> String.replace("&quot;", "\"")
-    |> String.replace("&#39;", "'")
-    |> String.replace("&amp;", "&")
+  # Highlighting language for the agent's sandbox: `Legion.Sandbox.Lua` -> "lua".
+  defp sandbox_language(agent_config) do
+    agent_config
+    |> Map.get(:sandbox, Legion.Executor.default_config().sandbox)
+    |> Module.split()
+    |> List.last()
+    |> String.downcase()
   end
 
   defp maybe_update_selected_agent(socket, agent_id, record) do

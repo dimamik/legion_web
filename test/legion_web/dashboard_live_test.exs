@@ -14,7 +14,7 @@ defmodule LegionWeb.DashboardLiveTest do
   end
 
   defmodule FakeAgent do
-    def system_prompt, do: "# Agent\n\nhello"
+    def system_prompt, do: "# Agent\n\nhello\n\n```lua\nlocal x = 1\n```"
     def tools, do: [FakeTool, OtherTool]
     def tool_config(FakeTool), do: [timeout: 5_000]
     def tool_config(OtherTool), do: [retries: 3]
@@ -116,7 +116,8 @@ defmodule LegionWeb.DashboardLiveTest do
           selected_agent: agent_record("old"),
           trace_items: [{:message, %{text: "x"}}],
           system_prompt: "some prompt",
-          agent_config: %{foo: :bar}
+          agent_config: %{foo: :bar},
+          code_language: "lua"
         })
 
       {:noreply, socket} = DashboardLive.handle_params(%{}, "/legion", socket)
@@ -126,6 +127,7 @@ defmodule LegionWeb.DashboardLiveTest do
       assert socket.assigns.trace_items == []
       assert socket.assigns.system_prompt == nil
       assert socket.assigns.agent_config == %{}
+      assert socket.assigns.code_language == nil
     end
   end
 
@@ -174,6 +176,43 @@ defmodule LegionWeb.DashboardLiveTest do
 
       assert socket.assigns.usage == [usage]
       assert socket.assigns.show_usage_modal == false
+    end
+
+    test "highlights fenced code in the system prompt by its fence language" do
+      agent_id = "demo"
+      :ets.insert(:legion_web_agents, {agent_id, agent_record(agent_id)})
+      encoded = LegionWeb.Helpers.encode_agent_id(agent_id)
+
+      {:noreply, socket} =
+        DashboardLive.handle_params(%{"agent_id" => encoded}, "/legion", mounted_socket())
+
+      {:safe, html} = socket.assigns.system_prompt
+      html = IO.iodata_to_binary(html)
+      assert html =~ ~s(<code class="language-lua highlight">)
+      assert html =~ ~s(<span class="kd">local</span>)
+    end
+
+    test "derives code_language from the default sandbox when the agent sets none" do
+      agent_id = "demo"
+      :ets.insert(:legion_web_agents, {agent_id, agent_record(agent_id)})
+      encoded = LegionWeb.Helpers.encode_agent_id(agent_id)
+
+      {:noreply, socket} =
+        DashboardLive.handle_params(%{"agent_id" => encoded}, "/legion", mounted_socket())
+
+      assert socket.assigns.code_language == "lua"
+    end
+
+    test "derives code_language from the configured sandbox" do
+      agent_id = "demo"
+      :ets.insert(:legion_web_agents, {agent_id, agent_record(agent_id)})
+      Application.put_env(:legion, :config, %{sandbox: Legion.Sandbox.Elixir})
+      encoded = LegionWeb.Helpers.encode_agent_id(agent_id)
+
+      {:noreply, socket} =
+        DashboardLive.handle_params(%{"agent_id" => encoded}, "/legion", mounted_socket())
+
+      assert socket.assigns.code_language == "elixir"
     end
 
     test "populates Vault with every tool's config before rendering the prompt" do

@@ -3,9 +3,10 @@ defmodule LegionWeb.Components.Trace do
 
   use LegionWeb, :html
 
-  alias LegionWeb.Helpers
+  alias LegionWeb.{Helpers, Markup}
 
   attr :items, :list, required: true
+  attr :language, :string, default: nil
 
   def render(assigns) do
     ~H"""
@@ -31,13 +32,13 @@ defmodule LegionWeb.Components.Trace do
               </summary>
               <div class="ml-4 pl-3 border-l-2 border-sol-cyan/30 space-y-1 py-1">
                 <div :for={sub <- sub_items} id={"item-#{item_seq(sub)}"}>
-                  <.render_item item={sub} />
+                  <.render_item item={sub} language={@language} />
                 </div>
               </div>
             </details>
           <% {_type, data} -> %>
             <div id={"item-#{data.seq}"} class="animate-fade-in">
-              <.render_item item={item} />
+              <.render_item item={item} language={@language} />
             </div>
         <% end %>
       <% end %>
@@ -91,7 +92,7 @@ defmodule LegionWeb.Components.Trace do
     <div class="flex gap-2 items-start py-0.5">
       <span class="shrink-0 w-16 tabular-nums">{format_ts(@data.ts)}</span>
       <%= if @data.action do %>
-        <.render_step_body data={@data} human_question={@human_question} />
+        <.render_step_body data={@data} human_question={@human_question} language={@language} />
       <% else %>
         <.render_response_only data={@data} />
       <% end %>
@@ -114,7 +115,7 @@ defmodule LegionWeb.Components.Trace do
       <span class={if @data.is_timeout, do: "text-sol-orange", else: "text-sol-red"}>
         {if @data.is_timeout, do: "\u23F1", else: "\u2717"}
       </span>
-      <div class="flex-1">
+      <div class="flex-1 min-w-0">
         <pre class={[
           "p-3 rounded-lg overflow-x-auto whitespace-pre-wrap text-xs",
           if(@data.is_timeout,
@@ -148,7 +149,7 @@ defmodule LegionWeb.Components.Trace do
       <% @data.error -> %>
         <span class="text-sol-red/70 italic">{format_llm_error(@data.error)}</span>
       <% has_result?(@data.result) -> %>
-        <div class="flex-1 p-3 bg-sol-green/8 border border-sol-green/20 rounded-lg">
+        <div class="flex-1 min-w-0 p-3 bg-sol-green/8 border border-sol-green/20 rounded-lg">
           <div class="text-black prose prose-sm max-w-none">
             {render_markdown(extract_response(@data.result))}
           </div>
@@ -161,10 +162,11 @@ defmodule LegionWeb.Components.Trace do
 
   attr :data, :map, required: true
   attr :human_question, :string, default: nil
+  attr :language, :string, default: nil
 
   defp render_step_body(assigns) do
     ~H"""
-    <div class="flex-1">
+    <div class="flex-1 min-w-0">
       <%= if @human_question do %>
         <div class="flex gap-2 items-center">
           <span class="text-sol-orange font-semibold">?</span>
@@ -177,7 +179,7 @@ defmodule LegionWeb.Components.Trace do
             <span class="show-label">show code</span>
             <span class="hide-label">hide code</span>
           </summary>
-          <pre class="mt-1.5 p-3 bg-sol-base2 rounded-lg overflow-x-auto whitespace-pre-wrap border border-sol-base1/20 highlight">{Helpers.highlight_elixir(@data.code)}</pre>
+          <pre class="mt-1.5 p-3 bg-sol-base2 rounded-lg overflow-x-auto whitespace-pre-wrap border border-sol-base1/20 highlight">{Markup.highlight(@data.code, @language)}</pre>
         </details>
         <div
           :if={@data.action in ["return", "done"] && has_result?(@data.result)}

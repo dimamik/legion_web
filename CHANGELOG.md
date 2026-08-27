@@ -10,6 +10,7 @@
 - Align dashboard records, routes, PubSub messages, and human-tool integration with Legion's `agent_id` and `parent_agent_id` terminology
 - Ship compiled dashboard CSS and JavaScript with the package
 - Update project attribution and repository links to Software Mansion
+- Add `LegionWeb.Markup` - highlight trace code in the language of the agent's `Legion.Sandbox` (Lua by default) and system-prompt fenced blocks by their fence language, backed by `makeup_syntect`
 
 ## v0.3.0 - 2026-04-21
 
