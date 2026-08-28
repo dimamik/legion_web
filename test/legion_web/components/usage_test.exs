@@ -30,6 +30,7 @@ defmodule LegionWeb.Components.UsageTest do
       assert html =~ "1.2k"
       assert html =~ "$0.007"
       assert html =~ "2 requests"
+      assert html =~ "May not match the provider invoice"
     end
 
     test "renders nothing without usage" do

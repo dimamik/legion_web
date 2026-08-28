@@ -7,23 +7,37 @@ defmodule LegionWeb.Components.Usage do
 
   attr :usage, :list, required: true
 
-  @doc "Header summary: input / output tokens and cost for the selected agent."
+  @cost_note "Estimate from token counts × list prices. May not match the provider invoice."
+
+  @doc "Header summary: input / output tokens and estimated cost for the selected agent."
   def summary(assigns) do
-    assigns = assign(assigns, :totals, Usage.totals(assigns.usage))
+    assigns =
+      assigns
+      |> assign(:totals, Usage.totals(assigns.usage))
+      |> assign(:cost_note, @cost_note)
 
     ~H"""
-    <span
-      :if={@totals.requests > 0}
-      class="flex items-center gap-2 tabular-nums"
-      title={"#{@totals.requests} requests · #{@totals.cached} cached · #{@totals.reasoning} reasoning"}
-    >
-      <span>&uarr; {Usage.format_tokens(@totals.input)}</span>
-      <span>&darr; {Usage.format_tokens(@totals.output)}</span>
+    <span :if={@totals.requests > 0} class="flex items-center gap-2 tabular-nums">
+      <span
+        class="flex items-center gap-2"
+        title={"#{@totals.requests} requests · #{@totals.cached} cached · #{@totals.reasoning} reasoning"}
+      >
+        <span>&uarr; {Usage.format_tokens(@totals.input)}</span>
+        <span>&darr; {Usage.format_tokens(@totals.output)}</span>
+      </span>
       <span
         :if={cost = Usage.format_cost(@totals.cost)}
-        class="px-1.5 py-0.5 rounded bg-sol-violet/10 text-sol-violet font-medium"
+        class="note inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sol-violet/10 text-sol-violet font-medium cursor-help"
+        data-note={@cost_note}
+        tabindex="0"
       >
         {cost}
+        <span
+          aria-hidden="true"
+          class="inline-flex items-center justify-center w-3 h-3 rounded-full border border-current text-[8px] leading-none font-serif italic font-semibold opacity-75"
+        >
+          i
+        </span>
       </span>
     </span>
     """
@@ -57,7 +71,7 @@ defmodule LegionWeb.Components.Usage do
           <.tile label="Output" value={Usage.format_tokens(@totals.output)} />
           <.tile label="Cached" value={Usage.format_tokens(@totals.cached)} />
           <.tile label="Reasoning" value={Usage.format_tokens(@totals.reasoning)} />
-          <.tile label="Cost" value={Usage.format_cost(@totals.cost) || "—"} accent />
+          <.tile label="Estimated Cost" value={Usage.format_cost(@totals.cost) || "—"} accent />
         </div>
         <table class="w-full font-mono text-xs tabular-nums">
           <thead class="text-[10px] uppercase tracking-wider text-sol-base1">
@@ -68,7 +82,7 @@ defmodule LegionWeb.Components.Usage do
               <th class="text-right font-medium py-1">Out</th>
               <th class="text-right font-medium py-1">Cached</th>
               <th class="text-right font-medium py-1">Reason</th>
-              <th class="text-right font-medium py-1">Cost</th>
+              <th class="text-right font-medium py-1">Est. Cost</th>
             </tr>
           </thead>
           <tbody>
