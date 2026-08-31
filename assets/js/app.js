@@ -49,6 +49,7 @@ const liveTransport = document
 const liveSocket = new LiveSocket(livePath, Socket, {
   params: { _csrf_token: csrfToken },
   hooks: Hooks,
+  ...(liveTransport === "longpoll" ? { transport: Phoenix.LongPoll } : {}),
 });
 
 liveSocket.connect();

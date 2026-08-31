@@ -71,5 +71,28 @@ defmodule LegionWeb.MarkupTest do
       assert html =~ "<h1>"
       assert html =~ "<em>text</em>"
     end
+
+    test "escapes raw HTML blocks instead of passing them through" do
+      html = Markup.markdown("<script>alert(1)</script>\n\nsafe *text*") |> to_html()
+      refute html =~ "<script>"
+      assert html =~ "&lt;script&gt;"
+      assert html =~ "<em>text</em>"
+    end
+
+    test "escapes raw HTML tags with attributes" do
+      html = Markup.markdown("<img src=x onerror=alert(1)>") |> to_html()
+      refute html =~ "<img"
+      assert html =~ "&lt;img"
+    end
+
+    test "escapes inline HTML" do
+      html = Markup.markdown("hello <b onmouseover=alert(1)>bold</b>") |> to_html()
+      refute html =~ "<b "
+      assert html =~ "&lt;b"
+    end
+
+    test "renders malformed markdown best-effort instead of raising" do
+      assert {:safe, _} = Markup.markdown("[unclosed](link\n\n> *")
+    end
   end
 end

@@ -325,20 +325,20 @@ defmodule LegionWeb.AgentTracker.TelemetryTest do
   end
 
   describe "event limit" do
-    test "does not store events beyond max_events_per_agent limit" do
+    test "evicts the oldest event to store a new one past the limit" do
       insert_agent("limited")
 
-      # Insert 500 events (the max)
-      for seq <- 1..500 do
-        :ets.insert(:legion_web_events, {{"limited", seq}, %{seq: seq}})
-      end
-
-      # Send one more event - it should still broadcast but not store
-      Phoenix.PubSub.subscribe(LegionWeb.PubSub, "legion_web:agent:#{inspect("limited")}")
+      for _ <- 1..500, do: send(Telemetry, {:event, "limited", :iteration_start, %{}})
       send(Telemetry, {:event, "limited", :llm_start, %{}})
 
-      assert_receive {:new_event, _}, 1000
-      assert length(Telemetry.get_events("limited")) == 500
+      # Synchronize on the tracker having processed all 501 events.
+      :sys.get_state(Telemetry)
+
+      events = Telemetry.get_events("limited")
+      assert length(events) == 500
+      assert List.last(events).type == :llm_start
+      # The oldest of the 501 was evicted, so the stored seqs span exactly 500.
+      assert hd(events).seq == List.last(events).seq - 499
     end
   end
 

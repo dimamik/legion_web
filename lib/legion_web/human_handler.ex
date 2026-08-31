@@ -32,7 +32,16 @@ defmodule LegionWeb.HumanHandler do
   def handle_info({:human_request, ref, from_pid, question, meta}, state) do
     agent_id = meta[:agent_id]
 
-    state = put_in(state.pending[agent_id], {ref, from_pid})
+    # Monitor the asker so a request whose eval timed out or crashed does not
+    # linger in pending forever. A repeat request from the same agent replaces
+    # the previous one - HumanTool blocks the agent, so the old asker is gone.
+    case state.pending[agent_id] do
+      {_ref, _from_pid, monitor_ref} -> Process.demonitor(monitor_ref, [:flush])
+      nil -> :ok
+    end
+
+    monitor_ref = Process.monitor(from_pid)
+    state = put_in(state.pending[agent_id], {ref, from_pid, monitor_ref})
 
     :telemetry.execute(
       [:legion_web, :agent, :waiting_for_human],
@@ -49,6 +58,17 @@ defmodule LegionWeb.HumanHandler do
     {:noreply, state}
   end
 
+  def handle_info({:DOWN, monitor_ref, :process, _pid, _reason}, state) do
+    pending =
+      state.pending
+      |> Enum.reject(fn {_agent_id, {_ref, _from_pid, pending_monitor_ref}} ->
+        pending_monitor_ref == monitor_ref
+      end)
+      |> Map.new()
+
+    {:noreply, %{state | pending: pending}}
+  end
+
   def handle_info(_msg, state), do: {:noreply, state}
 
   @impl true
@@ -57,7 +77,8 @@ defmodule LegionWeb.HumanHandler do
       {nil, _} ->
         {:reply, :not_found, state}
 
-      {{ref, from_pid}, pending} ->
+      {{ref, from_pid, monitor_ref}, pending} ->
+        Process.demonitor(monitor_ref, [:flush])
         send(from_pid, {:human_response, ref, text})
 
         :telemetry.execute(

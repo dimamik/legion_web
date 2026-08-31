@@ -29,14 +29,49 @@ defmodule LegionWeb.Markup do
   Renders markdown to safe HTML, highlighting every fenced code block whose
   info string names a registered lexer. Other fenced blocks are left as
   Earmark emitted them.
+
+  Raw HTML blocks in the markdown are escaped and rendered as text, so
+  markdown from an LLM or a user cannot inject markup into the dashboard.
+  Malformed markdown renders best-effort instead of raising.
   """
   @spec markdown(String.t()) :: Phoenix.HTML.safe()
   def markdown(text) when is_binary(text) do
-    text
-    |> Earmark.as_html!(code_class_prefix: "language-")
+    {_status, ast, _messages} = Earmark.Parser.as_ast(text, code_class_prefix: "language-")
+
+    ast
+    |> escape_raw_html()
+    |> Earmark.Transform.transform()
     |> highlight_code_blocks()
     |> Phoenix.HTML.raw()
   end
+
+  # Earmark passes raw HTML blocks through verbatim, which would let markdown
+  # inject `<script>` and friends. Replace every verbatim node with a plain
+  # text node so `Earmark.Transform` escapes it.
+  defp escape_raw_html(ast) when is_list(ast), do: Enum.map(ast, &escape_raw_html/1)
+
+  defp escape_raw_html({tag, attrs, children, %{verbatim: true}}) do
+    raw_text(tag, attrs, children)
+  end
+
+  defp escape_raw_html({tag, attrs, children, meta}) do
+    {tag, attrs, escape_raw_html(children), meta}
+  end
+
+  defp escape_raw_html(other), do: other
+
+  defp raw_text(tag, attrs, children) do
+    attrs_text = Enum.map_join(attrs, "", fn {name, value} -> ~s( #{name}="#{value}") end)
+    inner = Enum.map_join(children, "\n", &raw_child_text/1)
+
+    case inner do
+      "" -> "<#{tag}#{attrs_text}>"
+      _ -> "<#{tag}#{attrs_text}>\n#{inner}\n</#{tag}>"
+    end
+  end
+
+  defp raw_child_text(child) when is_binary(child), do: child
+  defp raw_child_text({tag, attrs, children, _meta}), do: raw_text(tag, attrs, children)
 
   # Earmark emits `<code class="lua language-lua">` for a ```lua fence.
   @code_block_re ~r/<code class="[\w-]+ language-([\w-]+)">(.*?)<\/code>/s

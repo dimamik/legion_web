@@ -48,7 +48,8 @@ defmodule LegionWeb.MixProject do
     [
       maintainers: ["Software Mansion"],
       licenses: ["MIT"],
-      files: ~w(lib priv/static* .formatter.exs mix.exs README* CHANGELOG* LICENSE*),
+      files:
+        ~w(lib priv/static/app.css priv/static/app.js .formatter.exs mix.exs README* CHANGELOG* LICENSE*),
       links: %{
         Website: "https://swmansion.com/",
         Changelog: "#{@source_url}/blob/main/CHANGELOG.md",

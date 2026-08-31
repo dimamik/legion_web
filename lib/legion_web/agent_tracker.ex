@@ -70,6 +70,8 @@ defmodule LegionWeb.AgentTracker do
   return the records described by this interface.
   """
 
+  alias LegionWeb.AgentTracker.{LegionAgent, LegionEvent}
+
   @type agent_id :: Legion.Store.agent_id()
   @type timestamp :: integer()
   @type status :: :running | :idle | :waiting_for_human | :done | :error | :dead

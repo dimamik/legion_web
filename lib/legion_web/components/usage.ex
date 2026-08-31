@@ -72,7 +72,7 @@ defmodule LegionWeb.Components.Usage do
           <thead class="text-[10px] uppercase tracking-wider text-sol-base1">
             <tr>
               <th class="text-left font-medium py-1">#</th>
-              <th class="text-left font-medium py-1">Time</th>
+              <th class="text-left font-medium py-1">Time (UTC)</th>
               <th class="text-right font-medium py-1">In</th>
               <th class="text-right font-medium py-1">Out</th>
               <th class="text-right font-medium py-1">Cached</th>
