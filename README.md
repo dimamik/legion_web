@@ -15,8 +15,8 @@ Add `legion_web` to your dependencies alongside `legion`:
 ```elixir
 def deps do
   [
-    {:legion, "~> 0.3"},
-    {:legion_web, "~> 0.3"}
+    {:legion, "~> 0.5"},
+    {:legion_web, "~> 0.5"}
   ]
 end
 ```
