@@ -71,7 +71,7 @@ mix deps.get
 mix dev
 ```
 
-This starts a Phoenix server at http://localhost:4001/legion with demo agents (math, text, and a coordinator) that you can interact with.
+This starts a Phoenix server at http://localhost:4001/legion with the Product Scout demo - a coordinator agent that asks what product you're looking for, then fans out to web-research and product-opinion sub-agents and synthesizes a report.
 
 Requires an LLM API key — create a `.env` file:
 

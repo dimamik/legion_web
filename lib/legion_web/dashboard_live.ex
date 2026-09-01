@@ -25,8 +25,7 @@ defmodule LegionWeb.DashboardLive do
      |> assign(:live_transport, session["live_transport"])
      |> assign(:csp_nonces, session["csp_nonces"])
      |> assign(:agent_tracker, agent_tracker)
-     |> assign(:agents, agent_tracker.list_agents(@page_size))
-     |> assign(:list_limit, @page_size)
+     |> assign_agents(@page_size)
      |> assign(:selected_agent_id, nil)
      |> assign(:selected_agent, nil)
      |> assign(:trace, TraceReducer.new())
@@ -61,16 +60,7 @@ defmodule LegionWeb.DashboardLive do
         TraceReducer.new()
       end
 
-    agent_config =
-      if agent do
-        app_config = Application.get_env(:legion, :config, %{})
-        Map.merge(app_config, agent.agent_module.config())
-      else
-        %{}
-      end
-
-    system_prompt =
-      agent && Markup.markdown(render_system_prompt(agent.agent_module, agent_config))
+    {system_prompt, agent_config} = prompt_and_config(agent)
 
     code_language = agent && sandbox_language(agent_config)
 
@@ -142,22 +132,15 @@ defmodule LegionWeb.DashboardLive do
     {:noreply, socket |> assign(:trace, trace) |> assign(:trace_items, TraceReducer.items(trace))}
   end
 
-  # Human tool integration
-  def handle_info({:human_request, question}, socket) do
-    {:noreply, assign(socket, :human_question, question)}
-  end
-
-  def handle_info({:human_responded, _text}, socket) do
-    {:noreply, assign(socket, :human_question, nil)}
-  end
-
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   @impl true
   def handle_event("send_message", %{"chat" => %{"text" => text}}, socket) when text != "" do
     %{selected_agent: agent} = socket.assigns
 
-    if agent && agent.pid && Process.alive?(agent.pid) do
+    # Legion.running?/1 instead of Process.alive?/1: the Postgres tracker can
+    # hand us a pid on another node, which Process.alive?/1 raises on.
+    if agent && Legion.running?(agent.pid) do
       case HumanHandler.respond(agent.agent_id, text) do
         :ok ->
           :ok
@@ -189,12 +172,7 @@ defmodule LegionWeb.DashboardLive do
   end
 
   def handle_event("load_more", _params, socket) do
-    list_limit = socket.assigns.list_limit + @page_size
-
-    {:noreply,
-     socket
-     |> assign(:list_limit, list_limit)
-     |> assign(:agents, socket.assigns.agent_tracker.list_agents(list_limit))}
+    {:noreply, assign_agents(socket, socket.assigns.list_limit + @page_size)}
   end
 
   @impl true
@@ -205,7 +183,7 @@ defmodule LegionWeb.DashboardLive do
         agents={@agents}
         selected_agent_id={@selected_agent_id}
         prefix={@prefix}
-        has_more={length(@agents) >= @list_limit}
+        has_more={@has_more}
       />
       <AgentDetail.render
         agent={@selected_agent}
@@ -224,6 +202,33 @@ defmodule LegionWeb.DashboardLive do
   end
 
   # Private helpers
+
+  # Fetches one agent beyond the limit so has_more reflects whether the
+  # tracker actually holds more, not whether the page happens to be full.
+  defp assign_agents(socket, list_limit) do
+    agents = socket.assigns.agent_tracker.list_agents(list_limit + 1)
+
+    socket
+    |> assign(:agents, Enum.take(agents, list_limit))
+    |> assign(:has_more, length(agents) > list_limit)
+    |> assign(:list_limit, list_limit)
+  end
+
+  defp app_config, do: Application.get_env(:legion, :config, %{})
+
+  # A persisted agent can outlive its module (renamed or removed since the
+  # conversation was stored); render it without a prompt or module config
+  # instead of crashing.
+  defp prompt_and_config(nil), do: {nil, %{}}
+
+  defp prompt_and_config(%{agent_module: agent_module}) do
+    if agent_module != nil and Code.ensure_loaded?(agent_module) do
+      agent_config = Map.merge(app_config(), agent_module.config())
+      {Markup.markdown(render_system_prompt(agent_module, agent_config)), agent_config}
+    else
+      {nil, app_config()}
+    end
+  end
 
   defp update_agent_subscription(socket, agent_id) do
     if connected?(socket) do

@@ -17,6 +17,8 @@
 
 defmodule ProductScout.Tools.WebSearch do
   @moduledoc "Searches the web for product information using DuckDuckGo."
+  # Req comes in transitively through legion -> req_llm; it cannot be declared
+  # here as only: :dev because req_llm needs it in every environment.
   use Legion.Tool
 
   @doc """

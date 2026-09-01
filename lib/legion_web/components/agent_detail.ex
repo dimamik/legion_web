@@ -128,9 +128,18 @@ defmodule LegionWeb.Components.AgentDetail do
     """
   end
 
-  defp format_config_value({provider, model, _options}), do: "#{provider}/#{model}"
-  defp format_config_value({provider, model}), do: "#{provider}/#{model}"
-  defp format_config_value(value), do: value
+  defp format_config_value({provider, model, _options})
+       when (is_atom(provider) or is_binary(provider)) and (is_atom(model) or is_binary(model)),
+       do: "#{provider}/#{model}"
+
+  defp format_config_value({provider, model})
+       when (is_atom(provider) or is_binary(provider)) and (is_atom(model) or is_binary(model)),
+       do: "#{provider}/#{model}"
+
+  defp format_config_value(value) when is_binary(value) or is_atom(value) or is_number(value),
+    do: value
+
+  defp format_config_value(value), do: inspect(value)
 
   defp status_badge_class(:running), do: "bg-sol-green/15 text-sol-green"
   defp status_badge_class(:idle), do: "bg-sol-blue/15 text-sol-blue"

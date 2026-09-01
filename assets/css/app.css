@@ -108,16 +108,6 @@ pre {
   }
 }
 
-/* Breathing glow for waiting state */
-@keyframes waiting-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(181, 137, 0, 0), inset 0 0 0 0 rgba(181, 137, 0, 0); }
-  50% { box-shadow: 0 0 12px -2px rgba(181, 137, 0, 0.2), inset 0 0 8px -4px rgba(181, 137, 0, 0.1); }
-}
-
-.waiting-glow {
-  animation: waiting-glow 2.5s ease-in-out infinite;
-}
-
 /* Subtle pulse for active indicators */
 @keyframes soft-pulse {
   0%, 100% { opacity: 1; }
@@ -229,6 +219,55 @@ details summary::marker {
   padding-left: 1em;
   color: #657b83;
   margin: 0.8em 0;
+}
+
+/* Prose — markdown rendering (scoped to trace response boxes; inherits the
+   trace font size) */
+.trace-prose p { margin: 0.5em 0; }
+.trace-prose > :first-child { margin-top: 0; }
+.trace-prose > :last-child { margin-bottom: 0; }
+
+.trace-prose h1, .trace-prose h2, .trace-prose h3, .trace-prose h4 {
+  color: #073642;
+  font-weight: 600;
+  margin: 1em 0 0.4em;
+  line-height: 1.3;
+}
+
+.trace-prose ul, .trace-prose ol { margin: 0.4em 0; padding-left: 1.4em; }
+.trace-prose ul { list-style-type: disc; }
+.trace-prose ol { list-style-type: decimal; }
+.trace-prose li { margin: 0.2em 0; }
+
+.trace-prose code {
+  background: #eee8d5;
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+}
+
+.trace-prose pre {
+  background: #eee8d5;
+  border-radius: 6px;
+  padding: 0.7em 0.9em;
+  margin: 0.6em 0;
+  overflow-x: auto;
+}
+
+.trace-prose pre code { background: none; padding: 0; }
+
+.trace-prose strong { color: #073642; font-weight: 600; }
+
+.trace-prose a {
+  color: #268bd2;
+  text-decoration: underline;
+  text-decoration-color: rgba(38, 139, 210, 0.4);
+}
+
+.trace-prose blockquote {
+  border-left: 3px solid #eee8d5;
+  padding-left: 0.9em;
+  color: #657b83;
+  margin: 0.6em 0;
 }
 
 /* Makeup syntax highlighting — solarized light palette */

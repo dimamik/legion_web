@@ -247,6 +247,25 @@ defmodule LegionWeb.DashboardLiveTest do
       assert socket.assigns.selected_agent_id == nil
       assert socket.assigns.selected_agent == nil
     end
+
+    test "renders an agent whose module no longer exists without a prompt" do
+      agent_id = "stale"
+
+      :ets.insert(
+        :legion_web_agents,
+        {agent_id, agent_record(agent_id, %{agent_module: No.Such.Module})}
+      )
+
+      Application.put_env(:legion, :config, %{env: :test})
+      encoded = LegionWeb.Helpers.encode_agent_id(agent_id)
+
+      {:noreply, socket} =
+        DashboardLive.handle_params(%{"agent_id" => encoded}, "/legion", mounted_socket())
+
+      assert socket.assigns.selected_agent_id == agent_id
+      assert socket.assigns.system_prompt == nil
+      assert socket.assigns.agent_config == %{env: :test}
+    end
   end
 
   describe "handle_info/2 - agent lifecycle" do
@@ -358,23 +377,11 @@ defmodule LegionWeb.DashboardLiveTest do
     end
   end
 
-  describe "handle_info/2 - human tool messages" do
-    test ":human_request sets :human_question" do
-      {:noreply, socket} =
-        DashboardLive.handle_info({:human_request, "sure?"}, mounted_socket())
-
-      assert socket.assigns.human_question == "sure?"
-    end
-
-    test ":human_responded clears :human_question" do
-      socket = mounted_socket(%{human_question: "old"})
-      {:noreply, socket} = DashboardLive.handle_info({:human_responded, "yes"}, socket)
-      assert socket.assigns.human_question == nil
-    end
-
+  describe "handle_info/2 - other messages" do
     test "unrecognized messages are ignored" do
       socket = mounted_socket()
       assert {:noreply, ^socket} = DashboardLive.handle_info(:anything, socket)
+      assert {:noreply, ^socket} = DashboardLive.handle_info({:human_request, "sure?"}, socket)
     end
   end
 
@@ -417,11 +424,27 @@ defmodule LegionWeb.DashboardLiveTest do
 
       assert length(socket.assigns.agents) == page_size
       assert socket.assigns.list_limit == page_size
+      assert socket.assigns.has_more == true
 
       {:noreply, socket} = DashboardLive.handle_event("load_more", %{}, socket)
 
       assert length(socket.assigns.agents) == page_size + 1
       assert socket.assigns.list_limit == page_size * 2
+      assert socket.assigns.has_more == false
+    end
+
+    test "has_more is false when the tracker holds exactly one page" do
+      page_size = DashboardLive.page_size()
+
+      for index <- 1..page_size do
+        agent_id = "agent-#{index}"
+        :ets.insert(:legion_web_agents, {agent_id, agent_record(agent_id, %{started_at: index})})
+      end
+
+      socket = mounted_socket()
+
+      assert length(socket.assigns.agents) == page_size
+      assert socket.assigns.has_more == false
     end
   end
 

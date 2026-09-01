@@ -1,9 +1,13 @@
 defmodule LegionWeb.Helpers do
   @moduledoc false
 
+  def module_name(nil), do: "unknown"
+
   def module_name(module) when is_atom(module) do
     module |> Module.split() |> List.last()
   end
+
+  def full_module_name(nil), do: "unknown"
 
   def full_module_name(module) when is_atom(module) do
     module |> to_string() |> String.replace_prefix("Elixir.", "")

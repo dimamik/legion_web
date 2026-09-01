@@ -150,7 +150,7 @@ defmodule LegionWeb.Components.Trace do
         <span class="text-sol-red/70 italic">{format_llm_error(@data.error)}</span>
       <% has_result?(@data.result) -> %>
         <div class="flex-1 min-w-0 p-3 bg-sol-green/8 border border-sol-green/20 rounded-lg">
-          <div class="text-black prose prose-sm max-w-none">
+          <div class="text-black trace-prose">
             {render_markdown(extract_response(@data.result))}
           </div>
         </div>
@@ -185,7 +185,7 @@ defmodule LegionWeb.Components.Trace do
           :if={@data.action in ["return", "done"] && has_result?(@data.result)}
           class="mt-1.5 p-3 bg-sol-green/8 border border-sol-green/20 rounded-lg"
         >
-          <div class="text-black prose prose-sm max-w-none">
+          <div class="text-black trace-prose">
             {render_markdown(extract_response(@data.result))}
           </div>
         </div>
@@ -270,8 +270,9 @@ defmodule LegionWeb.Components.Trace do
 
   defp format_duration(nil), do: nil
 
+  # Legion span durations are System.monotonic_time/0 diffs in native units.
   defp format_duration(duration) when is_integer(duration) do
-    Helpers.format_ms(div(duration, 1_000_000))
+    Helpers.format_ms(System.convert_time_unit(duration, :native, :millisecond))
   end
 
   defp format_duration(_), do: nil
@@ -332,12 +333,6 @@ defmodule LegionWeb.Components.Trace do
 
   defp format_result(result), do: inspect(result, pretty: true, limit: 500)
 
-  defp render_markdown(text) when is_binary(text) do
-    case Earmark.as_html(text, compact_output: true) do
-      {:ok, html, _} -> Phoenix.HTML.raw(html)
-      _ -> text
-    end
-  end
-
+  defp render_markdown(text) when is_binary(text), do: Markup.markdown(text)
   defp render_markdown(other), do: other
 end

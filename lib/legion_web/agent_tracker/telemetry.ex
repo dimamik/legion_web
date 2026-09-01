@@ -121,9 +121,11 @@ defmodule LegionWeb.AgentTracker.Telemetry do
       data: data
     }
 
-    if count_events(agent_id) < @max_events_per_agent do
-      :ets.insert(@events_table, {{agent_id, seq}, event})
+    if count_events(agent_id) >= @max_events_per_agent do
+      evict_oldest_event(agent_id)
     end
+
+    :ets.insert(@events_table, {{agent_id, seq}, event})
 
     broadcast_event(agent_id, event)
     record_usage(agent_id, type, data, seq)
@@ -166,43 +168,34 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     }
 
     :ets.insert(@agents_table, {meta.agent_id, record})
-    if pid = Process.whereis(__MODULE__), do: send(pid, {:agent_started, meta.agent_id, record})
+    notify_tracker({:agent_started, meta.agent_id, record})
   end
 
   def handle_telemetry([:legion, :agent, :stopped], _measurements, meta, _config) do
-    if pid = Process.whereis(__MODULE__), do: send(pid, {:agent_stopped, meta.agent_id})
+    notify_tracker({:agent_stopped, meta.agent_id})
   end
 
   def handle_telemetry([:legion, :agent, :message, :start], _measurements, meta, _config) do
     task = if is_binary(meta[:message]), do: meta[:message]
     updates = if task, do: %{task: task}, else: %{}
 
-    if pid = Process.whereis(__MODULE__),
-      do: send(pid, {:status_change, meta.agent_id, :running, updates})
-
-    if pid = Process.whereis(__MODULE__),
-      do: send(pid, {:event, meta.agent_id, :message_start, meta})
+    notify_tracker({:status_change, meta.agent_id, :running, updates})
+    notify_tracker({:event, meta.agent_id, :message_start, meta})
   end
 
   def handle_telemetry([:legion, :agent, :message, :stop], measurements, meta, _config) do
-    send(
-      __MODULE__,
-      {:status_change, meta.agent_id, :idle, %{iterations: meta[:iterations] || 0}}
-    )
+    notify_tracker({:status_change, meta.agent_id, :idle, %{iterations: meta[:iterations] || 0}})
 
-    send(
-      __MODULE__,
+    notify_tracker(
       {:event, meta.agent_id, :message_stop,
        Map.merge(meta, %{duration: measurements[:duration]})}
     )
   end
 
   def handle_telemetry([:legion, :agent, :message, :exception], measurements, meta, _config) do
-    if pid = Process.whereis(__MODULE__),
-      do: send(pid, {:status_change, meta.agent_id, :error, %{}})
+    notify_tracker({:status_change, meta.agent_id, :error, %{}})
 
-    send(
-      __MODULE__,
+    notify_tracker(
       {:event, meta.agent_id, :message_exception,
        Map.merge(meta, %{duration: measurements[:duration]})}
     )
@@ -245,15 +238,12 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   end
 
   def handle_telemetry([:legion_web, :agent, :waiting_for_human], _measurements, meta, _config) do
-    if pid = Process.whereis(__MODULE__), do: send(pid, {:waiting_for_human, meta.agent_id})
+    notify_tracker({:waiting_for_human, meta.agent_id})
   end
 
   def handle_telemetry([:legion_web, :agent, :human_response], _measurements, meta, _config) do
-    if pid = Process.whereis(__MODULE__),
-      do: send(pid, {:event, meta.agent_id, :human_response, %{text: meta.text}})
-
-    if pid = Process.whereis(__MODULE__),
-      do: send(pid, {:status_change, meta.agent_id, :running, %{}})
+    notify_tracker({:event, meta.agent_id, :human_response, %{text: meta.text}})
+    notify_tracker({:status_change, meta.agent_id, :running, %{}})
   end
 
   defp attach_telemetry_handlers do
@@ -280,8 +270,16 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   end
 
   defp track_and_forward(agent_id, type, data) do
-    if pid = Process.whereis(__MODULE__), do: send(pid, {:event, agent_id, type, data})
+    notify_tracker({:event, agent_id, type, data})
     forward_to_parent(agent_id, type, data)
+  end
+
+  # Telemetry handlers run in the emitting process. A bare send to the
+  # registered name raises while the tracker restarts, and telemetry
+  # permanently detaches a handler that raises - so drop the message instead.
+  defp notify_tracker(message) do
+    if pid = Process.whereis(__MODULE__), do: send(pid, message)
+    :ok
   end
 
   defp update_agent(agent_id, updates) do
@@ -297,6 +295,9 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   # Usage is recorded only for the agent's own LLM requests. A sub-agent's
   # llm_stop is also forwarded to its parent, but that copy still carries the
   # sub-agent's agent_id in its data and is skipped here.
+  #
+  # ponytail: rebroadcasts the full usage list per request (quadratic over a
+  # conversation); broadcast deltas if very long conversations show up.
   defp record_usage(agent_id, :llm_stop, %{agent_id: agent_id, usage: usage}, seq)
        when is_map(usage) do
     if track_usage?() do
@@ -316,6 +317,18 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     :ets.select_count(@events_table, [{{{agent_id, :_}, :_}, [], [true]}])
   end
 
+  # The events table is an ordered_set keyed by {agent_id, seq}, so the next
+  # key after {agent_id, 0} is the agent's oldest event.
+  defp evict_oldest_event(agent_id) do
+    case :ets.next(@events_table, {agent_id, 0}) do
+      {^agent_id, _seq} = oldest_key -> :ets.delete(@events_table, oldest_key)
+      _ -> :ok
+    end
+  end
+
+  # ponytail: evicts at most one finished agent per start, so with more than
+  # @max_agents concurrently active agents the table grows past the cap;
+  # evict in a loop if that ever becomes a real workload.
   defp evict_if_over_limit do
     if :ets.info(@agents_table, :size) > @max_agents do
       @agents_table
@@ -360,7 +373,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
   defp forward_to_parent(agent_id, type, data) do
     case :ets.lookup(@agents_table, agent_id) do
       [{^agent_id, %{parent_agent_id: parent_agent_id}}] when not is_nil(parent_agent_id) ->
-        if pid = Process.whereis(__MODULE__), do: send(pid, {:event, parent_agent_id, type, data})
+        notify_tracker({:event, parent_agent_id, type, data})
 
       _ ->
         :ok

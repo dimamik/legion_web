@@ -60,7 +60,7 @@ defmodule LegionWeb.UsageAggregator do
   @doc "Formats a dollar cost to three decimals, or `nil` when unknown."
   @spec format_cost(number() | nil) :: String.t() | nil
   def format_cost(nil), do: nil
-  def format_cost(cost) when is_number(cost) and cost < 0.001, do: "<$0.001"
+  def format_cost(cost) when is_number(cost) and cost > 0 and cost < 0.001, do: "<$0.001"
 
   def format_cost(cost) when is_number(cost),
     do: "$#{:erlang.float_to_binary(cost / 1, decimals: 3)}"

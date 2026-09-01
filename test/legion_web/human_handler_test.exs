@@ -88,6 +88,45 @@ defmodule LegionWeb.HumanHandlerTest do
     end
   end
 
+  describe "asker lifecycle" do
+    test "drops a pending request when the asking process dies" do
+      test_pid = self()
+
+      asker =
+        spawn(fn ->
+          send(
+            HumanHandler,
+            {:human_request, make_ref(), self(), "Q?", %{agent_id: "test_agent"}}
+          )
+
+          send(test_pid, :asked)
+          Process.sleep(:infinity)
+        end)
+
+      assert_receive :asked
+      assert_receive {:human_request, "Q?"}, 1000
+
+      Process.exit(asker, :kill)
+
+      # The DOWN message races with respond/2; wait for the cleanup.
+      assert eventually(fn -> HumanHandler.respond("test_agent", "late") == :not_found end)
+    end
+  end
+
+  defp eventually(fun, attempts \\ 50) do
+    cond do
+      fun.() ->
+        true
+
+      attempts == 0 ->
+        false
+
+      true ->
+        Process.sleep(10)
+        eventually(fun, attempts - 1)
+    end
+  end
+
   describe "handle_info with unrecognized messages" do
     test "ignores unknown messages" do
       send(HumanHandler, :garbage)

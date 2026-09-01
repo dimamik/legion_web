@@ -150,7 +150,8 @@ if Code.ensure_loaded?(Postgrex) do
           {:noreply, state}
 
         :error ->
-          {:noreply, state}
+          # The conversation is gone from the store; drop its cursor too.
+          {:noreply, update_in(state.event_cursors, &Map.delete(&1, agent_id))}
       end
     end
 
