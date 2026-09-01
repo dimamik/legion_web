@@ -1,28 +1,17 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 - 2026-09-01
 
 ### Changes
 
-- Escape raw HTML blocks in rendered markdown: LLM responses and system prompts can no longer inject markup (e.g. `<script>`) into the dashboard, and malformed markdown renders best-effort instead of raising
-- Honor the `:transport` router option - `"longpoll"` previously fell through to websocket
-- Use `Legion.running?/1` when sending chat messages, so agents running on other nodes (Postgres tracker) no longer crash the dashboard
-- Render persisted agents whose module no longer exists instead of crashing, and show `"unknown"` for a missing agent module name
-- Evict the oldest stored event when an agent passes the per-agent cap, instead of silently dropping new events
-- Monitor HumanTool askers so pending questions from crashed or timed-out evals are cleaned up
-- Guard all telemetry-handler sends against a restarting tracker, which previously could detach the handler
-- Show "Load more" only when the tracker actually holds more agents
-- Convert trace durations from native time units instead of assuming nanoseconds
-- Style markdown in trace response boxes (previously referenced non-existent `prose` classes)
-- Ship only `priv/static/app.css` and `priv/static/app.js` in the Hex package
-
-- Add LLM usage tracking: `LegionWeb.AgentTracker` gains a `get_usage/1` callback, implemented by the telemetry and Postgres trackers, and the agent header shows input / output tokens and cost, with a `Usage` overlay listing totals and every request
-- Add the configurable `LegionWeb.AgentTracker` interface, with telemetry-based tracking as the default
-- Add `LegionWeb.AgentTracker.Postgres` for loading persisted agents and conversation events from a PostgreSQL-backed `Legion.Store`, with live updates from database notifications
-- Align dashboard records, routes, PubSub messages, and human-tool integration with Legion's `agent_id` and `parent_agent_id` terminology
-- Ship compiled dashboard CSS and JavaScript with the package
-- Update project attribution and repository links to Software Mansion
-- Add `LegionWeb.Markup` - highlight trace code in the language of the agent's `Legion.Sandbox` (Lua by default) and system-prompt fenced blocks by their fence language, backed by `makeup_syntect`
+- Pluggable agent tracking - the [`LegionWeb.AgentTracker`](https://hexdocs.pm/legion_web/LegionWeb.AgentTracker.html) behaviour, [`LegionWeb.AgentTracker.Telemetry`](https://hexdocs.pm/legion_web/LegionWeb.AgentTracker.Telemetry.html) (default), [`LegionWeb.AgentTracker.Postgres`](https://hexdocs.pm/legion_web/LegionWeb.AgentTracker.Postgres.html) reading a [`Legion.Store.Postgres`](https://hexdocs.pm/legion/Legion.Store.Postgres.html) with live database notifications
+- LLM usage - [`get_usage/1`](https://hexdocs.pm/legion_web/LegionWeb.AgentTracker.html#c:get_usage/1) tracker callback, tokens and estimated cost in the agent header, `Usage` overlay listing every request
+- Syntax highlighting - [`LegionWeb.Markup`](https://hexdocs.pm/legion_web/LegionWeb.Markup.html) highlights trace code in the agent's [`Legion.Sandbox`](https://hexdocs.pm/legion/Legion.Sandbox.html) language (Lua by default) and system-prompt fences by language, via [makeup_syntect](https://hexdocs.pm/makeup_syntect)
+- Agent identity - `agent_id` and `parent_agent_id` across records, routes, PubSub, and human-tool integration, matching Legion 0.5
+- Markdown - styled trace responses, raw HTML escaped, malformed input rendered best-effort
+- Hex package ships compiled assets (`priv/static/app.css`, `priv/static/app.js`)
+- Fixes - [`:transport`](https://hexdocs.pm/legion_web/LegionWeb.Router.html#legion_dashboard/2) router option honored, cross-node agents via [`Legion.running?/1`](https://hexdocs.pm/legion/Legion.html#running?/1), persisted agents with a missing module, oldest-event eviction at the per-agent cap, pending HumanTool questions cleaned up on crash / timeout, telemetry handler survives tracker restarts, "Load more" only when more agents exist, trace durations in native time units
+- Attribution and links moved to Software Mansion
 
 ## v0.3.0 - 2026-04-21
 

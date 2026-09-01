@@ -2,7 +2,7 @@ defmodule LegionWeb.MixProject do
   use Mix.Project
 
   @source_url "https://github.com/software-mansion-labs/legion_web"
-  @version "0.3.0"
+  @version "0.5.0"
 
   def project do
     [
@@ -60,7 +60,7 @@ defmodule LegionWeb.MixProject do
 
   defp deps do
     [
-      {:legion, git: "https://github.com/software-mansion-labs/legion.git"},
+      {:legion, "~> 0.5"},
       {:phoenix, "~> 1.7"},
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 1.0"},
