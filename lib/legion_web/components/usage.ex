@@ -7,14 +7,9 @@ defmodule LegionWeb.Components.Usage do
 
   attr :usage, :list, required: true
 
-  @cost_note "Estimate from token counts × list prices. May not match the provider invoice."
-
   @doc "Header summary: input / output tokens and estimated cost for the selected agent."
   def summary(assigns) do
-    assigns =
-      assigns
-      |> assign(:totals, Usage.totals(assigns.usage))
-      |> assign(:cost_note, @cost_note)
+    assigns = assign(assigns, :totals, Usage.totals(assigns.usage))
 
     ~H"""
     <span :if={@totals.requests > 0} class="flex items-center gap-2 tabular-nums">
@@ -28,7 +23,7 @@ defmodule LegionWeb.Components.Usage do
       <span
         :if={cost = Usage.format_cost(@totals.cost)}
         class="note inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-sol-violet/10 text-sol-violet font-medium cursor-help"
-        data-note={@cost_note}
+        data-note="Estimate from token counts at list prices. May not match the provider invoice."
         tabindex="0"
       >
         {cost}
