@@ -9,8 +9,9 @@
 - Syntax highlighting - [`LegionWeb.Markup`](https://hexdocs.pm/legion_web/LegionWeb.Markup.html) highlights trace code in the agent's [`Legion.Sandbox`](https://hexdocs.pm/legion/Legion.Sandbox.html) language (Lua by default) and system-prompt fences by language, via [makeup_syntect](https://hexdocs.pm/makeup_syntect)
 - Agent identity - `agent_id` and `parent_agent_id` across records, routes, PubSub, and human-tool integration, matching Legion 0.5
 - Markdown - styled trace responses, raw HTML escaped, malformed input rendered best-effort
+- Pagination - agent list loads 20 agents at a time with a "Load more" button
 - Hex package ships compiled assets (`priv/static/app.css`, `priv/static/app.js`)
-- Fixes - [`:transport`](https://hexdocs.pm/legion_web/LegionWeb.Router.html#legion_dashboard/2) router option honored, cross-node agents via [`Legion.running?/1`](https://hexdocs.pm/legion/Legion.html#running?/1), persisted agents with a missing module, oldest-event eviction at the per-agent cap, pending HumanTool questions cleaned up on crash / timeout, telemetry handler survives tracker restarts, "Load more" only when more agents exist, trace durations in native time units
+- Fixes - [`:transport`](https://hexdocs.pm/legion_web/LegionWeb.Router.html#legion_dashboard/2) router option honored, cross-node agents via [`Legion.running?/1`](https://hexdocs.pm/legion/Legion.html#running?/1), persisted agents with a missing module, oldest-event eviction at the per-agent cap, pending HumanTool questions cleaned up on crash / timeout, telemetry handler survives tracker restarts, trace durations in native time units
 - Attribution and links moved to Software Mansion
 
 ## v0.3.0 - 2026-04-21
