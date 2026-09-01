@@ -1,7 +1,7 @@
 defmodule LegionWeb.UsageAggregator do
   @moduledoc """
   Aggregates and formats the per-request LLM usage entries returned by
-  `LegionWeb.AgentTracker.get_usage/1`.
+  `c:LegionWeb.AgentTracker.get_usage/1`.
 
   Entries are the string-keyed maps Legion records for each LLM request
   (`"input_tokens"`, `"output_tokens"`, `"cached_tokens"`, `"reasoning_tokens"`,
