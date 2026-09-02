@@ -134,9 +134,10 @@ defmodule LegionWeb.Components.AgentDetail do
   @doc """
   Header chip for the agent's rate-limit identity.
 
-  Shows the first `key: value` pair (map key order, so alphabetical for string
-  keys) and a `+N` count when more follow; hovering or focusing the chip lists
-  the rest in a note. Renders nothing for `nil` or an empty identity.
+  Shows one `key: value` pair and a `+N` count when more follow; hovering or
+  focusing the chip lists the rest in a note. Which pair leads is the
+  identity's map order, which is unspecified. Renders nothing for `nil` or an
+  empty identity.
   """
   def identity_chip(%{identity: identity} = assigns)
       when is_nil(identity) or map_size(identity) == 0 do
