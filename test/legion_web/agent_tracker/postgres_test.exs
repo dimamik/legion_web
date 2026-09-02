@@ -75,6 +75,30 @@ defmodule LegionWeb.AgentTracker.PostgresTest do
     assert Store.list_limits() == [50]
   end
 
+  test "exposes the stored rate-limit metadata as the agent's identity" do
+    identity = %{"ip" => "203.0.113.42", "tenant" => "acme"}
+
+    # Map.put/3 rather than a struct field: Legion 0.5's Payload has no
+    # ratelimit_metadata, and this suite must compile against it too.
+    Store.put(
+      Map.put(
+        %Payload{
+          agent_id: "scoped",
+          agent_module: TestAgent,
+          status: :idle,
+          started_at: ~N[2026-07-27 12:00:00]
+        },
+        :ratelimit_metadata,
+        identity
+      )
+    )
+
+    assert {:ok, _pid} = Postgres.start_link(store: Store, notifications: Notifications)
+
+    assert %LegionAgent{identity: ^identity} = Postgres.get_agent("scoped")
+    assert %LegionAgent{identity: nil} = Postgres.get_agent("new")
+  end
+
   test "reads agent records and durable events through the GenServer" do
     Store.put(%Payload{
       agent_id: "history",
