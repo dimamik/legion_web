@@ -80,7 +80,7 @@ pre {
   font-weight: 400;
   line-height: 1.35;
   text-align: left;
-  white-space: normal;
+  white-space: pre-line;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
@@ -99,6 +99,15 @@ pre {
 .note:focus-visible::before,
 .note:focus-visible::after {
   opacity: 1;
+}
+/* Note anchored to the element's left edge, for elements near the left of their row. */
+.note-left::after {
+  left: 0;
+  right: auto;
+}
+.note-left::before {
+  left: 10px;
+  right: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

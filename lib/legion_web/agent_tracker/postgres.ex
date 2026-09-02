@@ -43,6 +43,10 @@ if Code.ensure_loaded?(Postgrex) do
 
     Usage comes from the store's `usage` column, which Legion appends to at the
     end of each turn, so usage updates arrive per turn rather than per request.
+
+    The agent's identity is the store's `ratelimit_metadata`, written by
+    `Legion.RateLimiter.Postgres` and exposed on the payload since Legion 0.6.
+    With Legion 0.5 the identity is always `nil`.
     """
 
     use GenServer
@@ -187,6 +191,8 @@ if Code.ensure_loaded?(Postgrex) do
         agent_module: payload.agent_module,
         pid: pid,
         status: status(running?, payload.status),
+        # Map.get/2: Legion 0.5 payloads have no ratelimit_metadata field.
+        identity: Map.get(payload, :ratelimit_metadata),
         started_at: to_milliseconds(payload.started_at),
         finished_at: nil,
         task: nil,

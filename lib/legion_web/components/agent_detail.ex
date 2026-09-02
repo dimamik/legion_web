@@ -59,6 +59,7 @@ defmodule LegionWeb.Components.AgentDetail do
           ]}>
             {Helpers.status_label(@agent.status)}
           </span>
+          <.identity_chip identity={@agent.identity} />
           <div class="ml-auto flex items-center gap-4 text-xs text-sol-base00">
             <button
               :if={@system_prompt}
@@ -125,6 +126,48 @@ defmodule LegionWeb.Components.AgentDetail do
         </div>
       </div>
     </div>
+    """
+  end
+
+  attr :identity, :map, default: nil
+
+  @doc """
+  Header chip for the agent's rate-limit identity.
+
+  Shows the first `key: value` pair (map key order, so alphabetical for string
+  keys) and a `+N` count when more follow; hovering or focusing the chip lists
+  the rest in a note. Renders nothing for `nil` or an empty identity.
+  """
+  def identity_chip(%{identity: identity} = assigns)
+      when is_nil(identity) or map_size(identity) == 0 do
+    ~H""
+  end
+
+  def identity_chip(assigns) do
+    [{key, val} | rest] = Enum.to_list(assigns.identity)
+    assigns = assign(assigns, key: key, val: val, rest: rest)
+
+    ~H"""
+    <span
+      title={@rest == [] && "Rate-limit identity"}
+      class={[
+        "inline-flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap",
+        "border border-sol-base1/45 bg-sol-base3 text-sol-base00 hover:bg-sol-base2 transition-colors",
+        @rest != [] && "note note-left cursor-help"
+      ]}
+      data-note={
+        @rest != [] && Enum.map_join(@rest, "\n", fn {k, v} -> "#{k}: #{format_config_value(v)}" end)
+      }
+      tabindex={@rest != [] && "0"}
+    >
+      {@key}: {format_config_value(@val)}
+      <span
+        :if={@rest != []}
+        class="font-mono text-[9px] px-1 rounded-full text-sol-violet bg-sol-violet/10"
+      >
+        +{length(@rest)}
+      </span>
+    </span>
     """
   end
 

@@ -31,7 +31,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @impl true
+  @impl LegionWeb.AgentTracker
   def list_agents(limit) do
     @agents_table
     |> :ets.tab2list()
@@ -40,7 +40,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     |> Enum.take(limit)
   end
 
-  @impl true
+  @impl LegionWeb.AgentTracker
   def get_agent(agent_id) do
     case :ets.lookup(@agents_table, agent_id) do
       [{^agent_id, record}] -> record
@@ -48,7 +48,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     end
   end
 
-  @impl true
+  @impl LegionWeb.AgentTracker
   def get_events(agent_id) do
     :ets.select(@events_table, [
       {{{agent_id, :"$1"}, :"$2"}, [], [{{:"$1", :"$2"}}]}
@@ -57,7 +57,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
     |> Enum.map(&elem(&1, 1))
   end
 
-  @impl true
+  @impl LegionWeb.AgentTracker
   def get_usage(agent_id) do
     :ets.select(@usage_table, [
       {{{agent_id, :"$1"}, :"$2"}, [], [{{:"$1", :"$2"}}]}
@@ -161,6 +161,7 @@ defmodule LegionWeb.AgentTracker.Telemetry do
       agent_module: meta.agent,
       pid: self(),
       status: :running,
+      identity: nil,
       started_at: System.system_time(:millisecond),
       finished_at: nil,
       task: nil,
